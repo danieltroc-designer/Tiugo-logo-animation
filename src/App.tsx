@@ -253,12 +253,12 @@ function Logo({
 }
 
 export default function App() {
-  const [study, setStudy] = useState<Study>("assemble");
+  const [study, setStudy] = useState<Study>("drawshift");
   const [distance, setDistance] = useState(72);
   const [overshoot, setOvershoot] = useState(12);
   const [scale, setScale] = useState(100);
   const [pixelShift, setPixelShift] = useState(8);
-  const [loop, setLoop] = useState(false);
+  const [loop, setLoop] = useState(true);
   const [replayKey, setReplayKey] = useState(0);
 
   // Timing inputs rebuild the animation clock, so a live update mid-drag would

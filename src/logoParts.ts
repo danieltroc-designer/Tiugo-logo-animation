@@ -17,8 +17,8 @@ export const LOGO_HEIGHT = 220.024;
 
 /**
  * These SVGs live in `public/`, so Vite leaves the URLs untouched at build
- * time. Resolving them against BASE_URL keeps them working when the app is
- * served from a subpath, such as GitHub Pages.
+ * time. Resolving them against BASE_URL keeps them correct regardless of the
+ * path the app is served from.
  */
 const asset = (file: string) => `${import.meta.env.BASE_URL}assets/${file}`;
 
