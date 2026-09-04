@@ -252,6 +252,7 @@ h2 {
   place-items: center;
   overflow: hidden;
   background: #f8f7f3;
+  transition: background-color 180ms ease;
 }
 
 .stage-grid {
@@ -259,8 +260,8 @@ h2 {
   inset: 0;
   opacity: 0.6;
   background-image:
-    linear-gradient(rgba(17, 17, 15, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(17, 17, 15, 0.045) 1px, transparent 1px);
+    linear-gradient(var(--stage-grid, rgba(17, 17, 15, 0.045)) 1px, transparent 1px),
+    linear-gradient(90deg, var(--stage-grid, rgba(17, 17, 15, 0.045)) 1px, transparent 1px);
   background-size: 40px 40px;
   mask-image: radial-gradient(circle at center, black 0%, transparent 72%);
 }
@@ -269,7 +270,7 @@ h2 {
 .stage::after {
   content: "";
   position: absolute;
-  background: rgba(255, 90, 0, 0.42);
+  background: var(--stage-guide, rgba(255, 90, 0, 0.42));
 }
 
 .stage::before {
@@ -311,6 +312,13 @@ h2 {
   max-width: none;
   user-select: none;
   will-change: transform, opacity;
+}
+
+.logo-part svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
 .logo-path-slot {
@@ -512,6 +520,83 @@ h2 {
   display: grid;
   gap: 30px;
   padding: 32px 0;
+}
+
+.appearance-controls {
+  display: grid;
+  gap: 18px;
+  padding: 26px 0;
+  border-top: 1px solid rgba(17, 17, 15, 0.12);
+  border-bottom: 1px solid rgba(17, 17, 15, 0.12);
+}
+
+.appearance-controls .eyebrow {
+  margin: 0 0 2px;
+  color: #34332f;
+}
+
+.color-option {
+  display: grid;
+  gap: 9px;
+}
+
+.color-option > span {
+  color: #4f4d47;
+  font-size: 11px;
+}
+
+.color-swatches {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.color-swatches button {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid rgba(17, 17, 15, 0.14);
+  border-radius: 8px;
+  background: #faf9f6;
+  color: #69665f;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease,
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.color-swatches button:hover {
+  border-color: rgba(17, 17, 15, 0.36);
+  color: #11110f;
+}
+
+.color-swatches button:active {
+  transform: scale(0.98);
+}
+
+.color-swatches button.active {
+  border-color: #11110f;
+  background: #fff;
+  color: #11110f;
+}
+
+.color-swatches button:focus-visible {
+  outline: 2px solid #ff5a00;
+  outline-offset: 2px;
+}
+
+.color-swatches i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 15, 0.08);
+}
+
+.color-swatches i.light {
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 15, 0.18);
 }
 
 .range-control {

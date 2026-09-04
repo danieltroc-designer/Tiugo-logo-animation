@@ -19,7 +19,6 @@ import {
 const EASE_OUT = cubicBezier(0.23, 1, 0.32, 1);
 const EASE_IN_OUT = cubicBezier(0.77, 0, 0.175, 1);
 const IDLE_TAIL = 0.9;
-const INK = "#121212";
 
 type PartTiming = {
   enterStart: number;
@@ -76,6 +75,7 @@ function Letter({
   timing,
   pixelShift,
   strokeWidth,
+  logoColor,
 }: {
   part: Part;
   index: number;
@@ -83,6 +83,7 @@ function Letter({
   timing: PartTiming;
   pixelShift: number;
   strokeWidth: number;
+  logoColor: string;
 }) {
   const offset = ASSEMBLE_OFFSETS[index];
   const fromX = offset.x * (pixelShift * 0.55);
@@ -129,8 +130,8 @@ function Letter({
       >
         <motion.path
           d={part.path}
-          fill={INK}
-          stroke={INK}
+          fill={logoColor}
+          stroke={logoColor}
           strokeWidth={strokeWidth}
           style={{ pathLength, fillOpacity, strokeOpacity }}
         />
@@ -145,6 +146,7 @@ export default function PathDrawLogo({
   pixelShift,
   drawStrength,
   scale,
+  logoColor,
   loop,
   replayKey,
   reduceMotion,
@@ -154,6 +156,7 @@ export default function PathDrawLogo({
   pixelShift: number;
   drawStrength: number;
   scale: number;
+  logoColor: string;
   loop: boolean;
   replayKey: number;
   reduceMotion: boolean;
@@ -218,6 +221,7 @@ export default function PathDrawLogo({
             timing={timeline.parts[index]}
             pixelShift={pixelShift}
             strokeWidth={strokeWidth}
+            logoColor={logoColor}
           />
         ))}
         <motion.div
@@ -230,6 +234,7 @@ export default function PathDrawLogo({
             x: accentX,
             y: accentY,
             opacity: accentOpacity,
+            backgroundColor: logoColor,
           }}
         />
       </div>

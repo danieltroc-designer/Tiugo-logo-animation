@@ -11,7 +11,6 @@ import { TIUGO_PATHS, TIUGO_VIEWBOX, type TiugoPath } from "./tiugoPaths";
 
 const NUMBER_PATTERN = "-?\\d*\\.?\\d+(?:e[-+]?\\d+)?";
 const DRAW_EASE = cubicBezier(0.37, 0, 0.2, 1);
-const INK = "#121212";
 
 /** Left-to-right reading order, which is how the wordmark draws. */
 const DRAW_ORDER = ["T", "iDot", "iStem", "u", "g", "o"];
@@ -95,12 +94,14 @@ function Letter({
   timing,
   morph,
   lineWeight,
+  logoColor,
 }: {
   part: TiugoPath;
   clock: MotionValue<number>;
   timing: LetterTiming;
   morph: MotionValue<number>;
   lineWeight: number;
+  logoColor: string;
 }) {
   const pathLength = useTransform(
     clock,
@@ -127,8 +128,8 @@ function Letter({
   return (
     <motion.path
       d={d}
-      fill={INK}
-      stroke={INK}
+      fill={logoColor}
+      stroke={logoColor}
       strokeWidth={lineWeight}
       strokeLinejoin="round"
       style={{ pathLength, strokeOpacity, fillOpacity }}
@@ -144,6 +145,7 @@ export default function DrawShiftLogo({
   overshoot,
   lineWeight,
   scale,
+  logoColor,
   loop,
   replayKey,
   reduceMotion,
@@ -155,6 +157,7 @@ export default function DrawShiftLogo({
   overshoot: number;
   lineWeight: number;
   scale: number;
+  logoColor: string;
   loop: boolean;
   replayKey: number;
   reduceMotion: boolean;
@@ -228,6 +231,7 @@ export default function DrawShiftLogo({
               timing={timeline.letters[index]}
               morph={morph}
               lineWeight={lineWeight}
+              logoColor={logoColor}
             />
           ))}
         </svg>

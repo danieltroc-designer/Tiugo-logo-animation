@@ -20,6 +20,8 @@ type ExportPanelProps = {
   study: Study;
   studyLabel: string;
   timings: TimingParams;
+  backgroundColor: string;
+  logoColor: string;
   onPrepare: () => Promise<void> | void;
 };
 
@@ -29,6 +31,8 @@ export default function ExportPanel({
   study,
   studyLabel,
   timings,
+  backgroundColor,
+  logoColor,
   onPrepare,
 }: ExportPanelProps) {
   const [format, setFormat] = useState<ExportFormat>("mp4");
@@ -39,7 +43,7 @@ export default function ExportPanel({
   const [progress, setProgress] = useState(0);
 
   const size = SIZES.find((item) => item.id === sizeId) ?? SIZES[0];
-  const background = transparent ? "transparent" : "#f8f7f3";
+  const background = transparent ? "transparent" : backgroundColor;
   const raster = format !== "lottie";
 
   const exportFile = async () => {
@@ -51,7 +55,7 @@ export default function ExportPanel({
 
     try {
       if (format === "lottie") {
-        const json = buildLottie(study, timings);
+        const json = buildLottie(study, timings, { backgroundColor, logoColor });
         downloadBlob(
           new Blob([JSON.stringify(json)], { type: "application/json" }),
           `${slug}.json`,

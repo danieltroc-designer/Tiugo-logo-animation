@@ -6,7 +6,21 @@ import { getStudyDurationSeconds, type TimingParams } from "./timings";
 const FPS = 30;
 const COMP_W = 1920;
 const COMP_H = 1080;
-const INK: [number, number, number, number] = [18 / 255, 18 / 255, 18 / 255, 1];
+
+type ExportColors = {
+  backgroundColor: string;
+  logoColor: string;
+};
+
+function lottieColor(hex: string): [number, number, number, number] {
+  const value = hex.replace("#", "");
+  return [
+    Number.parseInt(value.slice(0, 2), 16) / 255,
+    Number.parseInt(value.slice(2, 4), 16) / 255,
+    Number.parseInt(value.slice(4, 6), 16) / 255,
+    1,
+  ];
+}
 
 type LottieShape = {
   i: number[][];
@@ -115,7 +129,26 @@ function compositionLayout() {
   return { scale, x, y };
 }
 
-function wrap(layers: unknown[], duration: number, name: string) {
+function wrap(layers: unknown[], duration: number, name: string, backgroundColor: string) {
+  const backgroundLayer = {
+    ddd: 0,
+    ind: layers.length + 1,
+    ty: 1,
+    nm: "Background",
+    sw: COMP_W,
+    sh: COMP_H,
+    sc: backgroundColor,
+    ks: {
+      ...identityTransform(COMP_W / 2, COMP_H / 2, 100),
+      a: { a: 0, k: [COMP_W / 2, COMP_H / 2] },
+    },
+    ao: 0,
+    ip: 0,
+    op: Math.round(duration * FPS),
+    st: 0,
+    bm: 0,
+  };
+
   return {
     v: "5.9.0",
     fr: FPS,
@@ -126,7 +159,8 @@ function wrap(layers: unknown[], duration: number, name: string) {
     nm: name,
     ddd: 0,
     assets: [],
-    layers,
+    bg: backgroundColor,
+    layers: [...layers, backgroundLayer],
   };
 }
 
@@ -142,7 +176,8 @@ function identityTransform(x: number, y: number, scalePercent: number) {
   };
 }
 
-function drawShiftLottie(params: TimingParams) {
+function drawShiftLottie(params: TimingParams, colors: ExportColors) {
+  const ink = lottieColor(colors.logoColor);
   const timeline = buildTimeline({
     count: 6,
     duration: params.duration,
@@ -187,7 +222,7 @@ function drawShiftLottie(params: TimingParams) {
           {
             ty: "st",
             nm: "Stroke",
-            c: { a: 0, k: INK },
+            c: { a: 0, k: ink },
             o: { a: 1, k: [keyframe(timing.fillStart, 100), keyframe(timing.fillEnd, 0)] },
             w: { a: 0, k: 1.4 },
             lc: 2,
@@ -196,7 +231,7 @@ function drawShiftLottie(params: TimingParams) {
           {
             ty: "fl",
             nm: "Fill",
-            c: { a: 0, k: INK },
+            c: { a: 0, k: ink },
             o: { a: 1, k: [keyframe(timing.fillStart, 0), keyframe(timing.fillEnd, 100)] },
             r: 1,
           },
@@ -238,10 +273,11 @@ function drawShiftLottie(params: TimingParams) {
     };
   });
 
-  return wrap(layers, duration, "Tiugo draw and shift");
+  return wrap(layers, duration, "Tiugo draw and shift", colors.backgroundColor);
 }
 
-function pieceLottie(study: Study, params: TimingParams) {
+function pieceLottie(study: Study, params: TimingParams, colors: ExportColors) {
+  const ink = lottieColor(colors.logoColor);
   const duration = getStudyDurationSeconds(study, params);
   const { scale, x, y } = compositionLayout();
 
@@ -276,7 +312,7 @@ function pieceLottie(study: Study, params: TimingParams) {
         ? [
             {
               ty: "st",
-              c: { a: 0, k: INK },
+              c: { a: 0, k: ink },
               o: { a: 1, k: [keyframe(delay, 95), keyframe(delay + params.duration, 0)] },
               w: { a: 0, k: 1.2 },
               lc: 2,
@@ -330,7 +366,7 @@ function pieceLottie(study: Study, params: TimingParams) {
               nm: `${part.name} ${shapeIndex + 1}`,
               ks: { a: 0, k: shape },
             })),
-            { ty: "fl", c: { a: 0, k: INK }, o: { a: 0, k: 100 }, r: 1 },
+            { ty: "fl", c: { a: 0, k: ink }, o: { a: 0, k: 100 }, r: 1 },
             ...extras,
             {
               ty: "tr",
@@ -352,10 +388,10 @@ function pieceLottie(study: Study, params: TimingParams) {
     };
   });
 
-  return wrap(layers, duration, `Tiugo ${study}`);
+  return wrap(layers, duration, `Tiugo ${study}`, colors.backgroundColor);
 }
 
-export function buildLottie(study: Study, params: TimingParams) {
-  if (study === "drawshift") return drawShiftLottie(params);
-  return pieceLottie(study, params);
+export function buildLottie(study: Study, params: TimingParams, colors: ExportColors) {
+  if (study === "drawshift") return drawShiftLottie(params, colors);
+  return pieceLottie(study, params, colors);
 }

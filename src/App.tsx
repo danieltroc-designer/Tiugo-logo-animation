@@ -27,6 +27,13 @@ const TIMELINE_DEFAULTS: TimelineParameters = {
   drawStrength: 84,
 };
 
+const COLORS = {
+  paper: "#f8f7f3",
+  orange: "#ff5a00",
+  ink: "#121212",
+  white: "#ffffff",
+} as const;
+
 type ControlId =
   | "duration"
   | "stagger"
@@ -160,6 +167,7 @@ function Logo({
   distance,
   overshoot,
   scale,
+  logoColor,
   replayKey,
   loop,
   reduceMotion,
@@ -170,6 +178,7 @@ function Logo({
   distance: number;
   overshoot: number;
   scale: number;
+  logoColor: string;
   replayKey: number;
   loop: boolean;
   reduceMotion: boolean;
@@ -234,17 +243,22 @@ function Logo({
                   : { x: -Math.min(distance * 0.22, 18), opacity: 0 };
 
           return (
-            <motion.img
+            <motion.div
               className="logo-part"
               key={part.name}
-              src={part.src}
-              alt=""
-              draggable={false}
-              style={partStyle(part)}
+              style={{ ...partStyle(part), color: logoColor }}
               initial={initial}
               animate={{ x: 0, y: 0, rotate: 0, opacity: 1, scale: 1 }}
               transition={transitionFor(index)}
-            />
+            >
+              <svg
+                viewBox={`0 0 ${part.width} ${part.height}`}
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <path d={part.path} fill="currentColor" />
+              </svg>
+            </motion.div>
           );
         })}
       </div>
@@ -260,6 +274,8 @@ export default function App() {
   const [pixelShift, setPixelShift] = useState(8);
   const [loop, setLoop] = useState(true);
   const [replayKey, setReplayKey] = useState(0);
+  const [backgroundColor, setBackgroundColor] = useState<string>(COLORS.paper);
+  const [logoColor, setLogoColor] = useState<string>(COLORS.ink);
 
   // Timing inputs rebuild the animation clock, so a live update mid-drag would
   // snap playback back to frame zero on every pointer move. Drafts drive the
@@ -294,6 +310,8 @@ export default function App() {
     setOvershoot(12);
     setScale(100);
     setPixelShift(8);
+    setBackgroundColor(COLORS.paper);
+    setLogoColor(COLORS.ink);
     setDraftTimeline(TIMELINE_DEFAULTS);
     setPlaybackTimeline(TIMELINE_DEFAULTS);
     setReplayKey((value) => value + 1);
@@ -359,7 +377,20 @@ export default function App() {
             </div>
           </div>
 
-          <div className="stage" ref={stageRef}>
+          <div
+            className="stage"
+            ref={stageRef}
+            style={{
+              backgroundColor,
+              color: logoColor,
+              "--stage-grid": backgroundColor === COLORS.orange
+                ? "rgba(255, 255, 255, 0.14)"
+                : "rgba(17, 17, 15, 0.045)",
+              "--stage-guide": backgroundColor === COLORS.orange
+                ? "rgba(255, 255, 255, 0.5)"
+                : "rgba(255, 90, 0, 0.42)",
+            } as CSSProperties}
+          >
             <div className="stage-grid" />
             <div className="export-capture" ref={captureRef}>
             {study === "drawshift" ? (
@@ -371,6 +402,7 @@ export default function App() {
                 overshoot={overshoot}
                 lineWeight={1 + (100 - drawStrength) / 25}
                 scale={scale}
+                logoColor={logoColor}
                 loop={loop}
                 replayKey={replayKey}
                 reduceMotion={reduceMotion}
@@ -382,6 +414,7 @@ export default function App() {
                 pixelShift={pixelShift}
                 drawStrength={drawStrength}
                 scale={scale}
+                logoColor={logoColor}
                 loop={loop}
                 replayKey={replayKey}
                 reduceMotion={reduceMotion}
@@ -394,13 +427,16 @@ export default function App() {
                 distance={distance}
                 overshoot={overshoot}
                 scale={scale}
+                logoColor={logoColor}
                 replayKey={replayKey}
                 loop={loop}
                 reduceMotion={reduceMotion}
               />
             )}
             </div>
-            <span className="stage-note">Exact vector geometry · Figma source</span>
+            <span className="stage-note" style={{ color: logoColor }}>
+              Exact vector geometry · Figma source
+            </span>
           </div>
 
           <p className="study-description">{activeStudy.description}</p>
@@ -414,6 +450,57 @@ export default function App() {
           <div className="range-list">
             {activeStudy.controls.map((id) => controls[id])}
           </div>
+          <div className="appearance-controls">
+            <p className="eyebrow">Appearance</p>
+            <div className="color-option">
+              <span>Background</span>
+              <div className="color-swatches" role="group" aria-label="Background color">
+                <button
+                  type="button"
+                  className={backgroundColor === COLORS.paper ? "active" : ""}
+                  aria-label="Paper background"
+                  aria-pressed={backgroundColor === COLORS.paper}
+                  onClick={() => setBackgroundColor(COLORS.paper)}
+                >
+                  <i style={{ background: COLORS.paper }} />
+                  Paper
+                </button>
+                <button
+                  type="button"
+                  className={backgroundColor === COLORS.orange ? "active" : ""}
+                  aria-label="Orange background, hex FF5A00"
+                  aria-pressed={backgroundColor === COLORS.orange}
+                  onClick={() => setBackgroundColor(COLORS.orange)}
+                >
+                  <i style={{ background: COLORS.orange }} />
+                  Orange
+                </button>
+              </div>
+            </div>
+            <div className="color-option">
+              <span>Logo</span>
+              <div className="color-swatches" role="group" aria-label="Logo color">
+                <button
+                  type="button"
+                  className={logoColor === COLORS.ink ? "active" : ""}
+                  aria-pressed={logoColor === COLORS.ink}
+                  onClick={() => setLogoColor(COLORS.ink)}
+                >
+                  <i style={{ background: COLORS.ink }} />
+                  Ink
+                </button>
+                <button
+                  type="button"
+                  className={logoColor === COLORS.white ? "active" : ""}
+                  aria-pressed={logoColor === COLORS.white}
+                  onClick={() => setLogoColor(COLORS.white)}
+                >
+                  <i className="light" style={{ background: COLORS.white }} />
+                  White
+                </button>
+              </div>
+            </div>
+          </div>
           <p className="controls-note">
             Motion automatically resolves to the resting logo. Reduced-motion
             preferences are respected.
@@ -424,6 +511,8 @@ export default function App() {
             study={study}
             studyLabel={activeStudy.label}
             timings={{ duration, stagger, hold, slide, drawStrength, distance, overshoot, pixelShift }}
+            backgroundColor={backgroundColor}
+            logoColor={logoColor}
             onPrepare={async () => {
               setLoop(false);
               setReplayKey((value) => value + 1);
