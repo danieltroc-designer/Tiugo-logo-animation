@@ -15,10 +15,17 @@ export type Part = {
 export const LOGO_WIDTH = 590.651;
 export const LOGO_HEIGHT = 220.024;
 
+/**
+ * These SVGs live in `public/`, so Vite leaves the URLs untouched at build
+ * time. Resolving them against BASE_URL keeps them working when the app is
+ * served from a subpath, such as GitHub Pages.
+ */
+const asset = (file: string) => `${import.meta.env.BASE_URL}assets/${file}`;
+
 export const PARTS: Part[] = [
   {
     name: "T",
-    src: "/assets/tiugo-part-4.svg",
+    src: asset("tiugo-part-4.svg"),
     left: 0,
     top: 0,
     width: 136.874,
@@ -27,7 +34,7 @@ export const PARTS: Part[] = [
   },
   {
     name: "i dot",
-    src: "/assets/tiugo-part-3.svg",
+    src: asset("tiugo-part-3.svg"),
     left: 149.5,
     top: 0,
     width: 25.917,
@@ -36,7 +43,7 @@ export const PARTS: Part[] = [
   },
   {
     name: "i",
-    src: "/assets/tiugo-part-1.svg",
+    src: asset("tiugo-part-1.svg"),
     left: 149.5,
     top: 38.5,
     width: 25.917,
@@ -45,7 +52,7 @@ export const PARTS: Part[] = [
   },
   {
     name: "u",
-    src: "/assets/tiugo-part-5.svg",
+    src: asset("tiugo-part-5.svg"),
     left: 191.7,
     top: 38.5,
     width: 131.161,
@@ -54,7 +61,7 @@ export const PARTS: Part[] = [
   },
   {
     name: "g",
-    src: "/assets/tiugo-part-6.svg",
+    src: asset("tiugo-part-6.svg"),
     left: 322.8,
     top: 36.1,
     width: 137.999,
@@ -63,7 +70,7 @@ export const PARTS: Part[] = [
   },
   {
     name: "o",
-    src: "/assets/tiugo-part-2.svg",
+    src: asset("tiugo-part-2.svg"),
     left: 460.7,
     top: 36.1,
     width: 129.951,
