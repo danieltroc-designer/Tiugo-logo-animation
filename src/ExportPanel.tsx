@@ -14,6 +14,16 @@ const SIZES = [
   { id: "square", label: "1080 × 1080", width: 1080, height: 1080 },
 ] as const;
 
+/** Takes over the preview's clock so each frame can be rendered at an exact time. */
+export type ExportPlayback = {
+  /** Stops live playback. */
+  begin: () => Promise<void>;
+  /** Moves the animation to `seconds` and resolves once that frame has rendered. */
+  seek: (seconds: number) => Promise<void>;
+  /** Hands the clock back to live playback. */
+  end: () => void;
+};
+
 type ExportPanelProps = {
   stageRef: RefObject<HTMLDivElement | null>;
   captureRef: RefObject<HTMLDivElement | null>;
@@ -22,7 +32,7 @@ type ExportPanelProps = {
   timings: TimingParams;
   backgroundColor: string;
   logoColor: string;
-  onPrepare: () => Promise<void> | void;
+  playback: ExportPlayback;
 };
 
 export default function ExportPanel({
@@ -33,7 +43,7 @@ export default function ExportPanel({
   timings,
   backgroundColor,
   logoColor,
-  onPrepare,
+  playback,
 }: ExportPanelProps) {
   const [format, setFormat] = useState<ExportFormat>("mp4");
   const [sizeId, setSizeId] = useState<(typeof SIZES)[number]["id"]>("1080");
@@ -52,6 +62,7 @@ export default function ExportPanel({
     setBusy(true);
     setProgress(0);
     setStatus("Preparing…");
+    let steppingClock = false;
 
     try {
       if (format === "lottie") {
@@ -70,9 +81,9 @@ export default function ExportPanel({
         throw new Error("The preview is not ready to capture yet.");
       }
 
-      await onPrepare();
+      steppingClock = true;
+      await playback.begin();
       stage.classList.add("stage--exporting");
-      await nextFrame();
       await nextFrame();
 
       const fps = format === "gif" ? 15 : 30;
@@ -85,6 +96,7 @@ export default function ExportPanel({
         width: exportSize.width,
         height: exportSize.height,
         background,
+        seek: playback.seek,
         onProgress: setProgress,
       });
 
@@ -110,6 +122,7 @@ export default function ExportPanel({
       setStatus(message);
     } finally {
       stageRef.current?.classList.remove("stage--exporting");
+      if (steppingClock) playback.end();
       setBusy(false);
     }
   };

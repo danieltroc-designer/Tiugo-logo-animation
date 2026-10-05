@@ -12,9 +12,14 @@ export async function encodeGif(
   transparent: boolean,
 ): Promise<Blob> {
   const encoder = GIFEncoder();
-  const delay = Math.round(1000 / fps);
   const first = frames[0];
   if (!first) throw new Error("No frames to encode.");
+
+  // GIF stores delays in whole centiseconds, so a 15 fps frame (6.67cs) can't
+  // be written exactly. Rounding against the running total alternates 6 and 7,
+  // which keeps the GIF the same length as the animation.
+  const delayAt = (index: number) =>
+    (Math.round(((index + 1) * 100) / fps) - Math.round((index * 100) / fps)) * 10;
 
   frames.forEach((frame, index) => {
     const data = canvasPixels(frame);
@@ -22,7 +27,7 @@ export async function encodeGif(
     const indexPixels = applyPalette(data, palette, transparent ? "rgba4444" : "rgb565");
     encoder.writeFrame(indexPixels, frame.width, frame.height, {
       palette,
-      delay,
+      delay: delayAt(index),
       first: index === 0,
       transparent,
       repeat: 0,
@@ -79,11 +84,16 @@ async function recordFrames(
 
   recorder.start();
   const interval = 1000 / fps;
-  for (const frame of frames) {
+  const start = performance.now();
+  for (let index = 0; index < frames.length; index += 1) {
     context.clearRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(frame, 0, 0);
+    context.drawImage(frames[index], 0, 0);
     track.requestFrame?.();
-    await new Promise((resolve) => window.setTimeout(resolve, interval));
+    // The recorder timestamps frames as they arrive, so wait for each frame's
+    // slot on an absolute schedule. Waiting a fixed interval after every draw
+    // would let timer overshoot accumulate into a slower video.
+    const untilNextFrame = start + (index + 1) * interval - performance.now();
+    await new Promise((resolve) => window.setTimeout(resolve, Math.max(0, untilNextFrame)));
   }
 
   recorder.stop();

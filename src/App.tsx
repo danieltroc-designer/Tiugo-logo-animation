@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState, type CSSProperties } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { useMotionValue, useReducedMotion } from "motion/react";
 import DrawShiftLogo from "./DrawShiftLogo";
-import ExportPanel from "./ExportPanel";
+import ExportPanel, { type ExportPlayback } from "./ExportPanel";
 import PathDrawLogo from "./PathDrawLogo";
-import { ASSEMBLE_OFFSETS, PARTS, partStyle, type Study } from "./logoParts";
-import { wait } from "./export/download";
+import PieceLogo from "./PieceLogo";
+import type { Study } from "./logoParts";
+import { nextFrame } from "./export/download";
 
 /**
  * Inputs that define the animation clock, committed as one atomic unit.
@@ -160,112 +161,6 @@ function RangeControl({
   );
 }
 
-function Logo({
-  study,
-  duration,
-  stagger,
-  distance,
-  overshoot,
-  scale,
-  logoColor,
-  replayKey,
-  loop,
-  reduceMotion,
-}: {
-  study: Study;
-  duration: number;
-  stagger: number;
-  distance: number;
-  overshoot: number;
-  scale: number;
-  logoColor: string;
-  replayKey: number;
-  loop: boolean;
-  reduceMotion: boolean;
-}) {
-  const repeat = loop && !reduceMotion ? Infinity : 0;
-
-  const transitionFor = (index: number) => {
-    const delay = index * stagger;
-
-    if (study === "cascade") {
-      return {
-        type: "spring" as const,
-        visualDuration: duration,
-        bounce: overshoot / 100,
-        delay,
-        repeat,
-        repeatDelay: 0.8,
-      };
-    }
-
-    return {
-      duration,
-      delay,
-      ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
-      repeat: study === "reveal" ? 0 : repeat,
-      repeatDelay: 0.8,
-    };
-  };
-
-  return (
-    <motion.div
-      className="logo-scale"
-      key={`${study}-${replayKey}-${reduceMotion ? "reduced" : "full"}`}
-      style={{ "--logo-scale": scale / 100 } as CSSProperties}
-      initial={study === "reveal" && !reduceMotion ? { clipPath: "inset(0 100% 0 0)" } : false}
-      animate={{ clipPath: "inset(0 0% 0 0)" }}
-      transition={{
-        duration: reduceMotion ? 0 : duration * 0.9,
-        ease: [0.65, 0, 0.35, 1],
-        repeat: study === "reveal" ? repeat : 0,
-        repeatDelay: 0.8 + stagger * 5,
-      }}
-      aria-label="Tiugo"
-      role="img"
-    >
-      <div className="logo">
-        {PARTS.map((part, index) => {
-          const offset = ASSEMBLE_OFFSETS[index];
-          const initial =
-            reduceMotion
-              ? false
-              : study === "assemble"
-                ? {
-                    x: offset.x * distance,
-                    y: offset.y * distance,
-                    rotate: offset.rotate * (0.4 + overshoot / 30),
-                    opacity: 0,
-                    scale: 0.94,
-                  }
-                : study === "cascade"
-                  ? { y: -distance, opacity: 0, scale: 0.96 }
-                  : { x: -Math.min(distance * 0.22, 18), opacity: 0 };
-
-          return (
-            <motion.div
-              className="logo-part"
-              key={part.name}
-              style={{ ...partStyle(part), color: logoColor }}
-              initial={initial}
-              animate={{ x: 0, y: 0, rotate: 0, opacity: 1, scale: 1 }}
-              transition={transitionFor(index)}
-            >
-              <svg
-                viewBox={`0 0 ${part.width} ${part.height}`}
-                preserveAspectRatio="none"
-                aria-hidden="true"
-              >
-                <path d={part.path} fill="currentColor" />
-              </svg>
-            </motion.div>
-          );
-        })}
-      </div>
-    </motion.div>
-  );
-}
-
 export default function App() {
   const [study, setStudy] = useState<Study>("drawshift");
   const [distance, setDistance] = useState(72);
@@ -287,6 +182,27 @@ export default function App() {
   const reduceMotion = useReducedMotion() ?? false;
   const stageRef = useRef<HTMLDivElement>(null);
   const captureRef = useRef<HTMLDivElement>(null);
+
+  // Every study plays on this one clock. Export pauses playback and steps the
+  // clock to each frame's exact time, so recordings never depend on how fast
+  // the browser can take a snapshot.
+  const clock = useMotionValue(0);
+  const [exporting, setExporting] = useState(false);
+
+  const exportPlayback = useMemo<ExportPlayback>(
+    () => ({
+      begin: async () => {
+        setExporting(true);
+        await nextFrame();
+      },
+      seek: async (seconds) => {
+        clock.set(seconds);
+        await nextFrame();
+      },
+      end: () => setExporting(false),
+    }),
+    [clock],
+  );
 
   const { duration, stagger, hold, slide, drawStrength } = playbackTimeline;
 
@@ -395,6 +311,7 @@ export default function App() {
             <div className="export-capture" ref={captureRef}>
             {study === "drawshift" ? (
               <DrawShiftLogo
+                clock={clock}
                 duration={duration}
                 stagger={stagger}
                 hold={hold}
@@ -406,9 +323,11 @@ export default function App() {
                 loop={loop}
                 replayKey={replayKey}
                 reduceMotion={reduceMotion}
+                paused={exporting}
               />
             ) : study === "pathdraw" ? (
               <PathDrawLogo
+                clock={clock}
                 duration={duration}
                 stagger={stagger}
                 pixelShift={pixelShift}
@@ -418,10 +337,12 @@ export default function App() {
                 loop={loop}
                 replayKey={replayKey}
                 reduceMotion={reduceMotion}
+                paused={exporting}
               />
             ) : (
-              <Logo
+              <PieceLogo
                 study={study}
+                clock={clock}
                 duration={duration}
                 stagger={stagger}
                 distance={distance}
@@ -431,6 +352,7 @@ export default function App() {
                 replayKey={replayKey}
                 loop={loop}
                 reduceMotion={reduceMotion}
+                paused={exporting}
               />
             )}
             </div>
@@ -513,11 +435,7 @@ export default function App() {
             timings={{ duration, stagger, hold, slide, drawStrength, distance, overshoot, pixelShift }}
             backgroundColor={backgroundColor}
             logoColor={logoColor}
-            onPrepare={async () => {
-              setLoop(false);
-              setReplayKey((value) => value + 1);
-              await wait(80);
-            }}
+            playback={exportPlayback}
           />
         </aside>
       </section>

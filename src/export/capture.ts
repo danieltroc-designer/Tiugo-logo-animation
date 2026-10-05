@@ -1,5 +1,12 @@
 import { toCanvas } from "html-to-image";
-import { evenSize, nextFrame, wait } from "./download";
+import { evenSize, nextFrame } from "./download";
+
+/**
+ * Extra room recorded around the logo box on each side, as a fraction of its
+ * size. Gather and Soft cascade travel in from outside the wordmark, so a
+ * snapshot of the box alone would cut those pieces off at its edge.
+ */
+const BLEED = 0.5;
 
 export type CaptureOptions = {
   durationSeconds: number;
@@ -7,6 +14,8 @@ export type CaptureOptions = {
   width: number;
   height: number;
   background: string;
+  /** Moves the animation to an exact time and resolves once that frame has rendered. */
+  seek: (seconds: number) => Promise<void>;
   onProgress?: (progress: number) => void;
 };
 
@@ -37,14 +46,30 @@ export async function captureFrames(
   const width = evenSize(options.width);
   const height = evenSize(options.height);
   const frameCount = Math.max(1, Math.round(options.durationSeconds * options.fps));
-  const interval = 1000 / options.fps;
   const frames: HTMLCanvasElement[] = [];
 
+  const boxWidth = source.offsetWidth;
+  const boxHeight = source.offsetHeight;
+  const bleedX = Math.round(boxWidth * BLEED);
+  const bleedY = Math.round(boxHeight * BLEED);
+
+  // The logo box keeps the same place in the frame as it always has; the
+  // bleed around it simply extends past, and the frame edges crop it.
+  const dest = fitRect(boxWidth, boxHeight, width, height, Math.round(width * 0.08));
+  const toFrame = dest.width / boxWidth;
+
+  // Each frame is rendered at its own timestamp rather than sampled from live
+  // playback. A snapshot takes tens of milliseconds, so sampling in real time
+  // would skip ahead and record the motion faster than it plays.
   for (let index = 0; index < frameCount; index += 1) {
+    await options.seek(index / options.fps);
     const snapshot = await toCanvas(source, {
       pixelRatio: 2,
       cacheBust: false,
       skipFonts: true,
+      width: boxWidth + bleedX * 2,
+      height: boxHeight + bleedY * 2,
+      style: { padding: `${bleedY}px ${bleedX}px`, boxSizing: "border-box" },
       backgroundColor: options.background === "transparent" ? undefined : options.background,
     });
 
@@ -61,14 +86,18 @@ export async function captureFrames(
       context.clearRect(0, 0, width, height);
     }
 
-    const dest = fitRect(snapshot.width, snapshot.height, width, height, Math.round(width * 0.08));
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = "high";
-    context.drawImage(snapshot, dest.x, dest.y, dest.width, dest.height);
+    context.drawImage(
+      snapshot,
+      dest.x - bleedX * toFrame,
+      dest.y - bleedY * toFrame,
+      (boxWidth + bleedX * 2) * toFrame,
+      (boxHeight + bleedY * 2) * toFrame,
+    );
     frames.push(frame);
 
     options.onProgress?.((index + 1) / frameCount);
-    if (index < frameCount - 1) await wait(interval);
   }
 
   await nextFrame();

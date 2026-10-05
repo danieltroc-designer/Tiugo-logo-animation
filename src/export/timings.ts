@@ -1,5 +1,6 @@
 import { buildTimeline } from "../DrawShiftLogo";
 import { buildPathDrawTimeline } from "../PathDrawLogo";
+import { buildPieceTimeline } from "../PieceLogo";
 import { PARTS, type Study } from "../logoParts";
 
 export type TimingParams = {
@@ -38,11 +39,13 @@ export function getStudyDurationSeconds(study: Study, params: TimingParams): num
     }).total;
   }
 
-  if (study === "reveal") {
-    return Math.max(params.duration * 0.9, params.duration + params.stagger * 5) + holdEnd;
-  }
-
-  return params.duration + params.stagger * 5 + holdEnd;
+  return buildPieceTimeline({
+    study,
+    count: PARTS.length,
+    duration: params.duration,
+    stagger: params.stagger,
+    overshoot: params.overshoot,
+  }).settled + holdEnd;
 }
 
 export function slugForStudy(study: Study): string {

@@ -33,15 +33,23 @@ a distortion.
 ## Exporting
 
 The export panel writes MP4, WebM, GIF, and Lottie JSON. Video and GIF are
-captured from the live DOM frame by frame, so they match what you see. Lottie is
-generated from the same timeline data as real vector shape layers, which keeps
-it resolution independent and editable in After Effects.
+rendered from the live DOM one frame at a time: export pauses playback and
+steps the study's clock to each frame's exact timestamp, so the recording plays
+at the same speed as the preview no matter how long each snapshot takes. The
+area around the logo is recorded too, so pieces that travel in from outside the
+wordmark stay visible. Lottie is generated from the same timeline data as real
+vector shape layers, which keeps it resolution independent and editable in
+After Effects.
 
 ## Notes on the motion
 
 Timing sliders commit on release rather than on every input event, so dragging
-them does not restart playback mid-flight. Both advanced studies run on a single
-shared clock, which keeps their sub-animations in sync when looping.
+them does not restart playback mid-flight. Every study runs on a single shared
+clock, which keeps all of its pieces in sync when looping.
+
+When looping, each pass ends by fading the resting mark out and leaving a short
+empty beat, so the next entrance starts from a clean stage instead of cutting
+straight from the finished logo to nothing.
 
 Reduced motion is handled in JavaScript per component: each study renders its
 final frame immediately instead of animating. The CSS layer only removes
@@ -52,11 +60,13 @@ controls still read as interactive.
 
 ```
 src/
-  App.tsx            studies 01–03, controls, state
-  PathDrawLogo.tsx   study 04
-  DrawShiftLogo.tsx  study 05, including the path interpolation
-  tiugoPaths.ts      straight and final letterforms from Figma
-  logoParts.ts       per-part geometry for the piece-based studies
-  export/            frame capture, video/GIF encoding, Lottie generation
-plans/               motion audit findings and their implementation notes
+  App.tsx               controls, state, and the playback clock
+  useStudyPlayback.ts   plays a study's clock, including the loop fade
+  PieceLogo.tsx         studies 01–03
+  PathDrawLogo.tsx      study 04
+  DrawShiftLogo.tsx     study 05, including the path interpolation
+  tiugoPaths.ts         straight and final letterforms from Figma
+  logoParts.ts          per-part geometry for the piece-based studies
+  export/               frame capture, video/GIF encoding, Lottie generation
+plans/                  motion audit findings and their implementation notes
 ```

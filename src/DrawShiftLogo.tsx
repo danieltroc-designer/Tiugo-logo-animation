@@ -1,13 +1,13 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import {
-  animate,
   cubicBezier,
   motion,
-  useMotionValue,
   useTransform,
+  type MotionStyle,
   type MotionValue,
 } from "motion/react";
 import { TIUGO_PATHS, TIUGO_VIEWBOX, type TiugoPath } from "./tiugoPaths";
+import { useStudyPlayback } from "./useStudyPlayback";
 
 const NUMBER_PATTERN = "-?\\d*\\.?\\d+(?:e[-+]?\\d+)?";
 const DRAW_EASE = cubicBezier(0.37, 0, 0.2, 1);
@@ -138,6 +138,7 @@ function Letter({
 }
 
 export default function DrawShiftLogo({
+  clock,
   duration,
   stagger,
   hold,
@@ -149,7 +150,9 @@ export default function DrawShiftLogo({
   loop,
   replayKey,
   reduceMotion,
+  paused,
 }: {
+  clock: MotionValue<number>;
   duration: number;
   stagger: number;
   hold: number;
@@ -161,6 +164,7 @@ export default function DrawShiftLogo({
   loop: boolean;
   replayKey: number;
   reduceMotion: boolean;
+  paused: boolean;
 }) {
   const parts = useMemo(
     () =>
@@ -175,7 +179,14 @@ export default function DrawShiftLogo({
     [parts.length, duration, stagger, hold, slide],
   );
 
-  const clock = useMotionValue(0);
+  const opacity = useStudyPlayback({
+    clock,
+    total: timeline.total,
+    loop,
+    replayKey,
+    reduceMotion,
+    paused,
+  });
 
   // Overshoot is a real keyframe past the destination rather than an easing
   // that exceeds 1, because the eased value feeds path interpolation directly.
@@ -194,26 +205,10 @@ export default function DrawShiftLogo({
     },
   );
 
-  useEffect(() => {
-    if (reduceMotion) {
-      clock.set(timeline.total);
-      return;
-    }
-
-    clock.set(0);
-    const playback = animate(clock, timeline.total, {
-      duration: timeline.total,
-      ease: "linear",
-      repeat: loop ? Infinity : 0,
-    });
-
-    return () => playback.stop();
-  }, [clock, timeline.total, loop, replayKey, reduceMotion]);
-
   return (
-    <div
+    <motion.div
       className="logo-scale"
-      style={{ "--logo-scale": scale / 100 } as React.CSSProperties}
+      style={{ "--logo-scale": scale / 100, opacity } as MotionStyle}
       role="img"
       aria-label="Tiugo"
     >
@@ -236,6 +231,6 @@ export default function DrawShiftLogo({
           ))}
         </svg>
       </div>
-    </div>
+    </motion.div>
   );
 }

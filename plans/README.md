@@ -8,8 +8,10 @@ Plans generated from the standard `/improve-animations` audit. The repository is
 | 002 | [Make morph overshoot visible](002-make-morph-overshoot-real.md) | MEDIUM | DONE |
 | 003 | [Commit timeline sliders before replay](003-commit-slider-playback.md) | MEDIUM | DONE |
 | 004 | [Scope reduced-motion behavior](004-scope-reduced-motion.md) | MEDIUM | DONE |
+| 005 | [One clock for every study, and frame-exact export](005-one-clock-for-every-study.md) | HIGH | DONE |
 
-All four landed together in the order below. `npm run build` exits 0.
+Plans 001–004 landed together in the order below; 005 came from a later
+frame-by-frame review. `npm run build` exits 0.
 Plan 003 deviates from its written spec by one field; the reason is recorded in
 that plan's implementation note.
 

@@ -1,10 +1,9 @@
-import { useEffect, useMemo, type CSSProperties } from "react";
+import { useMemo } from "react";
 import {
-  animate,
   cubicBezier,
   motion,
-  useMotionValue,
   useTransform,
+  type MotionStyle,
   type MotionValue,
 } from "motion/react";
 import {
@@ -15,6 +14,7 @@ import {
   partStyle,
   type Part,
 } from "./logoParts";
+import { useStudyPlayback } from "./useStudyPlayback";
 
 const EASE_OUT = cubicBezier(0.23, 1, 0.32, 1);
 const EASE_IN_OUT = cubicBezier(0.77, 0, 0.175, 1);
@@ -141,6 +141,7 @@ function Letter({
 }
 
 export default function PathDrawLogo({
+  clock,
   duration,
   stagger,
   pixelShift,
@@ -150,7 +151,9 @@ export default function PathDrawLogo({
   loop,
   replayKey,
   reduceMotion,
+  paused,
 }: {
+  clock: MotionValue<number>;
   duration: number;
   stagger: number;
   pixelShift: number;
@@ -160,13 +163,22 @@ export default function PathDrawLogo({
   loop: boolean;
   replayKey: number;
   reduceMotion: boolean;
+  paused: boolean;
 }) {
   const timeline = useMemo(
     () => buildPathDrawTimeline({ count: PARTS.length, duration, stagger, drawStrength }),
     [duration, stagger, drawStrength],
   );
 
-  const clock = useMotionValue(0);
+  const opacity = useStudyPlayback({
+    clock,
+    total: timeline.total,
+    loop,
+    replayKey,
+    reduceMotion,
+    paused,
+  });
+
   const strokeWidth = 0.95 + (1 - drawStrength / 100) * 0.8;
 
   const accentX = useTransform(
@@ -188,26 +200,10 @@ export default function PathDrawLogo({
     { ease: EASE_OUT, clamp: true },
   );
 
-  useEffect(() => {
-    if (reduceMotion) {
-      clock.set(timeline.total);
-      return;
-    }
-
-    clock.set(0);
-    const playback = animate(clock, timeline.total, {
-      duration: timeline.total,
-      ease: "linear",
-      repeat: loop ? Infinity : 0,
-    });
-
-    return () => playback.stop();
-  }, [clock, timeline.total, loop, replayKey, reduceMotion]);
-
   return (
-    <div
+    <motion.div
       className="logo-scale"
-      style={{ "--logo-scale": scale / 100 } as CSSProperties}
+      style={{ "--logo-scale": scale / 100, opacity } as MotionStyle}
       role="img"
       aria-label="Tiugo"
     >
@@ -238,6 +234,6 @@ export default function PathDrawLogo({
           }}
         />
       </div>
-    </div>
+    </motion.div>
   );
 }
