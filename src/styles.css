@@ -119,7 +119,9 @@ h1 {
   border: 1px solid rgba(17, 17, 15, 0.16);
   border-radius: 18px;
   background: #faf9f6;
-  overflow: hidden;
+  /* clip, not hidden: it rounds the corners without becoming a scroll
+     container, which would stop the background preview from sticking. */
+  overflow: clip;
 }
 
 .preview-column {
@@ -137,10 +139,53 @@ h1 {
   border-bottom: 1px solid rgba(17, 17, 15, 0.11);
 }
 
-.preview-toolbar > div:first-child {
+.preview-title {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-width: 0;
+}
+
+.preview-heading {
   display: flex;
   align-items: baseline;
   gap: 15px;
+}
+
+.mode-switch {
+  display: inline-grid;
+  grid-auto-flow: column;
+  padding: 3px;
+  border: 1px solid rgba(17, 17, 15, 0.14);
+  border-radius: 999px;
+  background: #eeece6;
+}
+
+.mode-switch button {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #6b6963;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.mode-switch button:hover {
+  color: #11110f;
+}
+
+.mode-switch button.active {
+  background: #11110f;
+  color: #fff;
+}
+
+.mode-switch button:focus-visible {
+  outline: 2px solid #ff5a00;
+  outline-offset: 2px;
 }
 
 .preview-number {
@@ -338,6 +383,35 @@ h2 {
   background: #121212;
   border-radius: 0.5px;
   will-change: transform, opacity;
+}
+
+/* Backgrounds are 16:9 artboards, drawn edge to edge on a canvas. */
+.stage.stage--background {
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+  background: #1a1a1a;
+}
+
+.stage--background::before,
+.stage--background::after {
+  display: none;
+}
+
+.background-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The artboard keeps its shape, so the preview stays beside the controls as
+   they scroll instead of stretching to the column's height. */
+.workbench--background .preview-column {
+  position: sticky;
+  top: 16px;
+  align-self: start;
+  grid-template-rows: auto auto auto;
 }
 
 .stage--exporting .stage-grid,
@@ -783,6 +857,12 @@ input[type="range"]:focus-visible {
     align-items: flex-start;
     gap: 18px;
     padding: 18px;
+  }
+
+  .preview-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
   }
 
   .playback {

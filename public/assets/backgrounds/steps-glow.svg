@@ -1,0 +1,14 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="7036.68" height="7132.5" viewBox="0 0 7036.68 7132.5" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Group 2087324613">
+<g id="Ellipse 3" filter="url(#filter0_f_0_11)">
+<ellipse cx="3518.34" cy="3566.25" rx="2173.75" ry="2125.84" transform="rotate(-90 3518.34 3566.25)" fill="#FF5A00"/>
+</g>
+</g>
+<defs>
+<filter id="filter0_f_0_11" x="-5.83456e-05" y="2.91469e-05" width="7036.68" height="7132.5" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="696.25" result="effect1_foregroundBlur_0_11"/>
+</filter>
+</defs>
+</svg>

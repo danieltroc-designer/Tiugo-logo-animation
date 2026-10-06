@@ -2,11 +2,18 @@ import { useState, type RefObject } from "react";
 import type { Study } from "./logoParts";
 import { captureFrames } from "./export/capture";
 import { downloadBlob, nextFrame } from "./export/download";
-import { encodeGif, encodeMp4, encodeWebm } from "./export/encode";
+import { encodeGif, encodeMp4, encodeWebm, frameList, type FrameSource } from "./export/encode";
 import { buildLottie } from "./export/lottie";
 import { getStudyDurationSeconds, slugForStudy, type TimingParams } from "./export/timings";
 
 export type ExportFormat = "mp4" | "gif" | "webm" | "lottie";
+
+const FORMATS = [
+  ["mp4", "MP4", "Keynote / PowerPoint"],
+  ["gif", "GIF", "Slides / Slack"],
+  ["webm", "WebM", "Web / Figma"],
+  ["lottie", "Lottie", "After Effects / web"],
+] as const;
 
 const SIZES = [
   { id: "1080", label: "1920 × 1080", width: 1920, height: 1080 },
@@ -24,6 +31,15 @@ export type ExportPlayback = {
   end: () => void;
 };
 
+/** A background loop, rendered straight from its canvas renderer at export size. */
+export type BackgroundLoopExport = {
+  label: string;
+  slug: string;
+  /** Grain is per-pixel noise, which GIF can't compress. */
+  grainy: boolean;
+  frames: (width: number, height: number, fps: number) => Promise<FrameSource>;
+};
+
 type ExportPanelProps = {
   stageRef: RefObject<HTMLDivElement | null>;
   captureRef: RefObject<HTMLDivElement | null>;
@@ -33,6 +49,8 @@ type ExportPanelProps = {
   backgroundColor: string;
   logoColor: string;
   playback: ExportPlayback;
+  /** Set while the lab shows a background instead of a logo study. */
+  backgroundLoop: BackgroundLoopExport | null;
 };
 
 export default function ExportPanel({
@@ -44,6 +62,7 @@ export default function ExportPanel({
   backgroundColor,
   logoColor,
   playback,
+  backgroundLoop,
 }: ExportPanelProps) {
   const [format, setFormat] = useState<ExportFormat>("mp4");
   const [sizeId, setSizeId] = useState<(typeof SIZES)[number]["id"]>("1080");
@@ -52,20 +71,27 @@ export default function ExportPanel({
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const size = SIZES.find((item) => item.id === sizeId) ?? SIZES[0];
-  const background = transparent ? "transparent" : backgroundColor;
-  const raster = format !== "lottie";
+  // Backgrounds are composed for 16:9 and drawn with canvas effects, so they
+  // offer neither Lottie nor a square crop. A choice made for a logo study
+  // falls back rather than being lost.
+  const formats = backgroundLoop ? FORMATS.filter(([id]) => id !== "lottie") : FORMATS;
+  const activeFormat: ExportFormat = backgroundLoop && format === "lottie" ? "mp4" : format;
+  const sizes = backgroundLoop ? SIZES.filter((item) => item.id !== "square") : SIZES;
+  const size = sizes.find((item) => item.id === sizeId) ?? sizes[0];
+  const canBeTransparent = !backgroundLoop && activeFormat !== "mp4" && activeFormat !== "lottie";
+  const transparentOutput = transparent && canBeTransparent;
+  const raster = activeFormat !== "lottie";
 
   const exportFile = async () => {
     if (busy) return;
-    const slug = `${slugForStudy(study)}`;
+    const slug = backgroundLoop ? backgroundLoop.slug : slugForStudy(study);
     setBusy(true);
     setProgress(0);
     setStatus("Preparing…");
     let steppingClock = false;
 
     try {
-      if (format === "lottie") {
+      if (activeFormat === "lottie") {
         const json = buildLottie(study, timings, { backgroundColor, logoColor });
         downloadBlob(
           new Blob([JSON.stringify(json)], { type: "application/json" }),
@@ -75,47 +101,59 @@ export default function ExportPanel({
         return;
       }
 
-      const stage = stageRef.current;
-      const captureTarget = captureRef.current;
-      if (!captureTarget || !stage) {
-        throw new Error("The preview is not ready to capture yet.");
+      const fps = activeFormat === "gif" ? 15 : 30;
+      const exportSize = activeFormat === "gif" && size.width > 1280 ? SIZES[1] : size;
+      const formatLabel = activeFormat === "gif" ? "GIF" : activeFormat === "mp4" ? "MP4" : "WebM";
+      let source: FrameSource;
+      let onEncodeProgress: ((value: number) => void) | undefined;
+
+      if (backgroundLoop) {
+        // Background frames are rendered as they are encoded, so encoding is
+        // what moves the progress bar.
+        source = await backgroundLoop.frames(exportSize.width, exportSize.height, fps);
+        onEncodeProgress = setProgress;
+        setStatus(activeFormat === "gif" ? "Encoding GIF…" : `Recording ${formatLabel}…`);
+      } else {
+        const stage = stageRef.current;
+        const captureTarget = captureRef.current;
+        if (!captureTarget || !stage) {
+          throw new Error("The preview is not ready to capture yet.");
+        }
+
+        steppingClock = true;
+        await playback.begin();
+        stage.classList.add("stage--exporting");
+        await nextFrame();
+
+        setStatus("Recording frames…");
+        const frames = await captureFrames(captureTarget, {
+          durationSeconds: getStudyDurationSeconds(study, timings),
+          fps,
+          width: exportSize.width,
+          height: exportSize.height,
+          background: transparentOutput ? "transparent" : backgroundColor,
+          seek: playback.seek,
+          onProgress: setProgress,
+        });
+        source = frameList(frames);
+
+        setStatus(`Encoding ${formatLabel}…`);
+        setProgress(1);
       }
 
-      steppingClock = true;
-      await playback.begin();
-      stage.classList.add("stage--exporting");
-      await nextFrame();
-
-      const fps = format === "gif" ? 15 : 30;
-      const exportSize = format === "gif" && size.width > 1280 ? SIZES[1] : size;
-      const durationSeconds = getStudyDurationSeconds(study, timings);
-      setStatus("Recording frames…");
-      const frames = await captureFrames(captureTarget, {
-        durationSeconds,
-        fps,
-        width: exportSize.width,
-        height: exportSize.height,
-        background,
-        seek: playback.seek,
-        onProgress: setProgress,
-      });
-
-      setStatus(format === "gif" ? "Encoding GIF…" : format === "mp4" ? "Encoding MP4…" : "Encoding WebM…");
-      setProgress(1);
-
       const blob =
-        format === "gif"
-          ? await encodeGif(frames, fps, transparent)
-          : format === "mp4"
-            ? await encodeMp4(frames, fps)
-            : await encodeWebm(frames, fps);
+        activeFormat === "gif"
+          ? await encodeGif(source, fps, transparentOutput, onEncodeProgress)
+          : activeFormat === "mp4"
+            ? await encodeMp4(source, fps, onEncodeProgress)
+            : await encodeWebm(source, fps, onEncodeProgress);
 
-      const extension = blob.type.includes("webm") ? "webm" : format;
+      const extension = blob.type.includes("webm") ? "webm" : activeFormat;
       downloadBlob(blob, `${slug}.${extension}`);
       setStatus(
-        extension !== format
+        extension !== activeFormat
           ? `This browser exported WebM instead of MP4. Keynote and PowerPoint both open WebM, or convert it with HandBrake if you need MP4.`
-          : `Saved ${frames.length} frames as ${extension.toUpperCase()}.`,
+          : `Saved ${source.count} frames as ${extension.toUpperCase()} (${(blob.size / 1_000_000).toFixed(1)} MB).`,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Export failed.";
@@ -127,32 +165,40 @@ export default function ExportPanel({
     }
   };
 
+  const hint =
+    activeFormat === "mp4"
+      ? "Best for presentations."
+      : activeFormat === "lottie"
+        ? "Vector JSON for LottieFiles or After Effects."
+        : activeFormat === "gif" && backgroundLoop?.grainy
+          ? "Grain doesn't compress in GIF, so this file will be large (tens of MB). MP4 is far smaller."
+          : backgroundLoop
+            ? "Renders the loop frame by frame."
+            : "Records the live preview.";
+
   return (
     <section className="export-panel" aria-label="Export animation">
       <div className="export-heading">
         <p className="eyebrow">Export</p>
-        <span>One cycle of the current study, at the current parameters.</span>
+        <span>
+          {backgroundLoop
+            ? "One seamless loop of the current background, at the current parameters."
+            : "One cycle of the current study, at the current parameters."}
+        </span>
       </div>
 
       <div className="export-formats" role="tablist" aria-label="File format">
-        {(
-          [
-            ["mp4", "MP4", "Keynote / PowerPoint"],
-            ["gif", "GIF", "Slides / Slack"],
-            ["webm", "WebM", "Web / Figma"],
-            ["lottie", "Lottie", "After Effects / web"],
-          ] as const
-        ).map(([id, label, hint]) => (
+        {formats.map(([id, label, formatHint]) => (
           <button
             key={id}
             type="button"
             role="tab"
-            aria-selected={format === id}
-            className={format === id ? "active" : ""}
+            aria-selected={activeFormat === id}
+            className={activeFormat === id ? "active" : ""}
             onClick={() => setFormat(id)}
           >
             <strong>{label}</strong>
-            <span>{hint}</span>
+            <span>{formatHint}</span>
           </button>
         ))}
       </div>
@@ -161,38 +207,40 @@ export default function ExportPanel({
         <label>
           Size
           <select
-            value={sizeId}
+            value={size.id}
             disabled={!raster || busy}
             onChange={(event) => setSizeId(event.target.value as typeof sizeId)}
           >
-            {SIZES.map((item) => (
+            {sizes.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.label}
               </option>
             ))}
           </select>
         </label>
-        <label className="export-check">
-          <input
-            type="checkbox"
-            checked={transparent}
-            disabled={busy || format === "mp4" || format === "lottie"}
-            onChange={(event) => setTransparent(event.target.checked)}
-          />
-          Transparent background
-        </label>
+        {backgroundLoop ? null : (
+          <label className="export-check">
+            <input
+              type="checkbox"
+              checked={transparentOutput}
+              disabled={busy || !canBeTransparent}
+              onChange={(event) => setTransparent(event.target.checked)}
+            />
+            Transparent background
+          </label>
+        )}
       </div>
 
       <div className="export-actions">
         <button type="button" className="export-button" disabled={busy} onClick={() => void exportFile()}>
-          {busy ? "Exporting…" : `Download ${format.toUpperCase()}`}
+          {busy ? "Exporting…" : `Download ${activeFormat.toUpperCase()}`}
         </button>
         {busy ? (
           <div className="export-progress" aria-hidden="true">
             <i style={{ width: `${Math.round(progress * 100)}%` }} />
           </div>
         ) : null}
-        <p className="export-status">{status || (format === "mp4" ? "Best for presentations." : format === "lottie" ? "Vector JSON for LottieFiles or After Effects." : "Records the live preview.")}</p>
+        <p className="export-status">{status || hint}</p>
       </div>
     </section>
   );

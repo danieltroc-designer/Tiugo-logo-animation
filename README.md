@@ -30,6 +30,31 @@ the two Figma frames, which share an identical path skeleton. Only the three
 moving squares differ, so the interpolation is an exact translation rather than
 a distortion.
 
+## Backgrounds
+
+Switch the toolbar from **Logo** to **Background** to animate the three social
+backgrounds from the Figma "Social Media" file (section `92:7808`) instead of
+the wordmark, which then sits still on top as in the designs.
+
+| # | Background | Figma frame | Motion |
+| --- | --- | --- | --- |
+| 01 | Steps | W1 | The stepped pixel pattern climbs while the orange glow sweeps across it. Step morph eases the blocks between stepped and straight, the same move as Draw & shift. |
+| 02 | Glow | W2 | Two soft highlights orbit opposite corners of the brand orange and breathe. |
+| 03 | Mesh | w3 | Blue, violet and orange light fields drift and turn through each other. |
+
+Each background is drawn on a canvas from the design's own layers: the blurred
+glows and blobs are the SVGs exported from Figma, the grain is its noise
+texture, and the stair geometry is measured from the exported vector. At t = 0
+every background renders as designed, and every movement completes whole
+cycles within the loop length, so the last frame flows back into the first.
+Figma's export of w3 leaves out a noise effect, so its shade layer and grain
+are matched to Figma's render rather than taken from the exported values.
+
+In background mode the export panel renders one loop at the chosen size
+straight from the canvas renderer, as MP4, WebM or GIF in 16:9. Grain doesn't
+compress in GIF, so Glow and Mesh GIFs run to tens of megabytes; MP4 is far
+smaller.
+
 ## Exporting
 
 The export panel writes MP4, WebM, GIF, and Lottie JSON. Video and GIF are
@@ -65,6 +90,8 @@ src/
   PieceLogo.tsx         studies 01–03
   PathDrawLogo.tsx      study 04
   DrawShiftLogo.tsx     study 05, including the path interpolation
+  BackgroundStage.tsx   the canvas preview for background mode
+  backgrounds/          the three Figma backgrounds: controls and renderer
   tiugoPaths.ts         straight and final letterforms from Figma
   logoParts.ts          per-part geometry for the piece-based studies
   export/               frame capture, video/GIF encoding, Lottie generation

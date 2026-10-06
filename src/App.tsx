@@ -1,11 +1,22 @@
 import { useMemo, useRef, useState, type CSSProperties } from "react";
 import { useMotionValue, useReducedMotion } from "motion/react";
+import BackgroundStage from "./BackgroundStage";
 import DrawShiftLogo from "./DrawShiftLogo";
-import ExportPanel, { type ExportPlayback } from "./ExportPanel";
+import ExportPanel, { type BackgroundLoopExport, type ExportPlayback } from "./ExportPanel";
 import PathDrawLogo from "./PathDrawLogo";
 import PieceLogo from "./PieceLogo";
+import {
+  BACKGROUND_DEFAULTS,
+  BACKGROUNDS,
+  LOOP_DEFAULT,
+  type BackgroundId,
+} from "./backgrounds/designs";
 import type { Study } from "./logoParts";
+import { backgroundFrames } from "./export/backgroundFrames";
 import { nextFrame } from "./export/download";
+
+/** Whether the lab animates the wordmark or the backgrounds it sits on. */
+type Mode = "logo" | "background";
 
 /**
  * Inputs that define the animation clock, committed as one atomic unit.
@@ -161,7 +172,39 @@ function RangeControl({
   );
 }
 
+function OptionGroup<T extends string | boolean>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="color-option">
+      <span>{label}</span>
+      <div className="color-swatches" role="group" aria-label={label}>
+        {options.map((option) => (
+          <button
+            key={String(option.value)}
+            type="button"
+            className={value === option.value ? "active" : ""}
+            aria-pressed={value === option.value}
+            onClick={() => onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
+  const [mode, setMode] = useState<Mode>("logo");
   const [study, setStudy] = useState<Study>("drawshift");
   const [distance, setDistance] = useState(72);
   const [overshoot, setOvershoot] = useState(12);
@@ -178,6 +221,16 @@ export default function App() {
   const [draftTimeline, setDraftTimeline] = useState<TimelineParameters>(TIMELINE_DEFAULTS);
   const [playbackTimeline, setPlaybackTimeline] =
     useState<TimelineParameters>(TIMELINE_DEFAULTS);
+
+  // Each background keeps its own settings while you switch between them.
+  // Loop length rebuilds the clock like the timing sliders, so it commits on
+  // release too; everything else redraws live.
+  const [background, setBackground] = useState<BackgroundId>("steps");
+  const [backgroundParams, setBackgroundParams] = useState(BACKGROUND_DEFAULTS);
+  const [draftLoop, setDraftLoop] = useState(LOOP_DEFAULT);
+  const [loopSeconds, setLoopSeconds] = useState(LOOP_DEFAULT);
+  const [showLogo, setShowLogo] = useState(true);
+  const [grainMotion, setGrainMotion] = useState(false);
 
   const reduceMotion = useReducedMotion() ?? false;
   const stageRef = useRef<HTMLDivElement>(null);
@@ -211,7 +264,52 @@ export default function App() {
     [study],
   );
 
+  const activeBackground = useMemo(
+    () => BACKGROUNDS.find((item) => item.id === background) ?? BACKGROUNDS[0],
+    [background],
+  );
+  const params = backgroundParams[background];
+  const current = mode === "logo" ? activeStudy : activeBackground;
+
+  const backgroundLoop = useMemo<BackgroundLoopExport>(
+    () => ({
+      label: activeBackground.label,
+      slug: `tiugo-background-${activeBackground.id}`,
+      grainy: activeBackground.grain && params.grain > 0,
+      frames: (width, height, fps) =>
+        backgroundFrames(
+          { background, params, loopSeconds, showLogo, grainMotion },
+          width,
+          height,
+          fps,
+        ),
+    }),
+    [activeBackground, background, params, loopSeconds, showLogo, grainMotion],
+  );
+
   const replay = () => setReplayKey((value) => value + 1);
+
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    replay();
+  };
+
+  const setParam = (key: string) => (value: number) =>
+    setBackgroundParams((all) => ({ ...all, [background]: { ...all[background], [key]: value } }));
+
+  const commitLoop = () => {
+    setLoopSeconds(draftLoop);
+    replay();
+  };
+
+  const resetBackground = () => {
+    setBackgroundParams((all) => ({ ...all, [background]: BACKGROUND_DEFAULTS[background] }));
+    setDraftLoop(LOOP_DEFAULT);
+    setLoopSeconds(LOOP_DEFAULT);
+    setShowLogo(true);
+    setGrainMotion(false);
+    replay();
+  };
 
   const commitTimeline = () => {
     setPlaybackTimeline(draftTimeline);
@@ -254,7 +352,9 @@ export default function App() {
         </div>
         <span className="status">
           <i />
-          Study {activeStudy.number} · Wordmark
+          {mode === "logo"
+            ? `Study ${activeStudy.number} · Wordmark`
+            : `Background ${activeBackground.number} · 16:9`}
         </span>
       </header>
 
@@ -267,12 +367,32 @@ export default function App() {
         </p>
       </section>
 
-      <section className="workbench">
+      <section className={mode === "background" ? "workbench workbench--background" : "workbench"}>
         <div className="preview-column">
           <div className="preview-toolbar">
-            <div>
-              <span className="preview-number">{activeStudy.number}</span>
-              <h2>{activeStudy.label}</h2>
+            <div className="preview-title">
+              <div className="mode-switch" role="group" aria-label="What to animate">
+                {(
+                  [
+                    ["logo", "Logo"],
+                    ["background", "Background"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={mode === id ? "active" : ""}
+                    aria-pressed={mode === id}
+                    onClick={() => switchMode(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="preview-heading">
+                <span className="preview-number">{current.number}</span>
+                <h2>{current.label}</h2>
+              </div>
             </div>
             <div className="playback">
               <label className="loop-toggle">
@@ -293,140 +413,207 @@ export default function App() {
             </div>
           </div>
 
-          <div
-            className="stage"
-            ref={stageRef}
-            style={{
-              backgroundColor,
-              color: logoColor,
-              "--stage-grid": backgroundColor === COLORS.orange
-                ? "rgba(255, 255, 255, 0.14)"
-                : "rgba(17, 17, 15, 0.045)",
-              "--stage-guide": backgroundColor === COLORS.orange
-                ? "rgba(255, 255, 255, 0.5)"
-                : "rgba(255, 90, 0, 0.42)",
-            } as CSSProperties}
-          >
-            <div className="stage-grid" />
-            <div className="export-capture" ref={captureRef}>
-            {study === "drawshift" ? (
-              <DrawShiftLogo
+          {mode === "background" ? (
+            <div className="stage stage--background" ref={stageRef}>
+              <BackgroundStage
                 clock={clock}
-                duration={duration}
-                stagger={stagger}
-                hold={hold}
-                slide={slide}
-                overshoot={overshoot}
-                lineWeight={1 + (100 - drawStrength) / 25}
-                scale={scale}
-                logoColor={logoColor}
+                background={background}
+                label={activeBackground.label}
+                params={params}
+                loopSeconds={loopSeconds}
+                showLogo={showLogo}
+                grainMotion={grainMotion}
                 loop={loop}
                 replayKey={replayKey}
                 reduceMotion={reduceMotion}
                 paused={exporting}
               />
-            ) : study === "pathdraw" ? (
-              <PathDrawLogo
-                clock={clock}
-                duration={duration}
-                stagger={stagger}
-                pixelShift={pixelShift}
-                drawStrength={drawStrength}
-                scale={scale}
-                logoColor={logoColor}
-                loop={loop}
-                replayKey={replayKey}
-                reduceMotion={reduceMotion}
-                paused={exporting}
-              />
-            ) : (
-              <PieceLogo
-                study={study}
-                clock={clock}
-                duration={duration}
-                stagger={stagger}
-                distance={distance}
-                overshoot={overshoot}
-                scale={scale}
-                logoColor={logoColor}
-                replayKey={replayKey}
-                loop={loop}
-                reduceMotion={reduceMotion}
-                paused={exporting}
-              />
-            )}
             </div>
-            <span className="stage-note" style={{ color: logoColor }}>
-              Exact vector geometry · Figma source
-            </span>
-          </div>
+          ) : (
+            <div
+              className="stage"
+              ref={stageRef}
+              style={{
+                backgroundColor,
+                color: logoColor,
+                "--stage-grid": backgroundColor === COLORS.orange
+                  ? "rgba(255, 255, 255, 0.14)"
+                  : "rgba(17, 17, 15, 0.045)",
+                "--stage-guide": backgroundColor === COLORS.orange
+                  ? "rgba(255, 255, 255, 0.5)"
+                  : "rgba(255, 90, 0, 0.42)",
+              } as CSSProperties}
+            >
+              <div className="stage-grid" />
+              <div className="export-capture" ref={captureRef}>
+              {study === "drawshift" ? (
+                <DrawShiftLogo
+                  clock={clock}
+                  duration={duration}
+                  stagger={stagger}
+                  hold={hold}
+                  slide={slide}
+                  overshoot={overshoot}
+                  lineWeight={1 + (100 - drawStrength) / 25}
+                  scale={scale}
+                  logoColor={logoColor}
+                  loop={loop}
+                  replayKey={replayKey}
+                  reduceMotion={reduceMotion}
+                  paused={exporting}
+                />
+              ) : study === "pathdraw" ? (
+                <PathDrawLogo
+                  clock={clock}
+                  duration={duration}
+                  stagger={stagger}
+                  pixelShift={pixelShift}
+                  drawStrength={drawStrength}
+                  scale={scale}
+                  logoColor={logoColor}
+                  loop={loop}
+                  replayKey={replayKey}
+                  reduceMotion={reduceMotion}
+                  paused={exporting}
+                />
+              ) : (
+                <PieceLogo
+                  study={study}
+                  clock={clock}
+                  duration={duration}
+                  stagger={stagger}
+                  distance={distance}
+                  overshoot={overshoot}
+                  scale={scale}
+                  logoColor={logoColor}
+                  replayKey={replayKey}
+                  loop={loop}
+                  reduceMotion={reduceMotion}
+                  paused={exporting}
+                />
+              )}
+              </div>
+              <span className="stage-note" style={{ color: logoColor }}>
+                Exact vector geometry · Figma source
+              </span>
+            </div>
+          )}
 
-          <p className="study-description">{activeStudy.description}</p>
+          <p className="study-description">{current.description}</p>
         </div>
 
         <aside className="controls">
           <div className="controls-heading">
             <p className="eyebrow">Parameters</p>
-            <button onClick={resetParameters}>Reset</button>
+            <button onClick={mode === "logo" ? resetParameters : resetBackground}>Reset</button>
           </div>
-          <div className="range-list">
-            {activeStudy.controls.map((id) => controls[id])}
-          </div>
-          <div className="appearance-controls">
-            <p className="eyebrow">Appearance</p>
-            <div className="color-option">
-              <span>Background</span>
-              <div className="color-swatches" role="group" aria-label="Background color">
-                <button
-                  type="button"
-                  className={backgroundColor === COLORS.paper ? "active" : ""}
-                  aria-label="Paper background"
-                  aria-pressed={backgroundColor === COLORS.paper}
-                  onClick={() => setBackgroundColor(COLORS.paper)}
-                >
-                  <i style={{ background: COLORS.paper }} />
-                  Paper
-                </button>
-                <button
-                  type="button"
-                  className={backgroundColor === COLORS.orange ? "active" : ""}
-                  aria-label="Orange background, hex FF5A00"
-                  aria-pressed={backgroundColor === COLORS.orange}
-                  onClick={() => setBackgroundColor(COLORS.orange)}
-                >
-                  <i style={{ background: COLORS.orange }} />
-                  Orange
-                </button>
+          {mode === "background" ? (
+            <>
+              <div className="range-list">
+                <RangeControl label="Loop length" value={draftLoop} min={4} max={16} step={0.5} unit="s" onChange={setDraftLoop} onCommit={commitLoop} />
+                {activeBackground.controls.map((control) => (
+                  <RangeControl
+                    key={`${background}-${control.key}`}
+                    label={control.label}
+                    value={params[control.key]}
+                    min={control.min}
+                    max={control.max}
+                    step={control.step}
+                    unit={control.unit}
+                    onChange={setParam(control.key)}
+                  />
+                ))}
               </div>
-            </div>
-            <div className="color-option">
-              <span>Logo</span>
-              <div className="color-swatches" role="group" aria-label="Logo color">
-                <button
-                  type="button"
-                  className={logoColor === COLORS.ink ? "active" : ""}
-                  aria-pressed={logoColor === COLORS.ink}
-                  onClick={() => setLogoColor(COLORS.ink)}
-                >
-                  <i style={{ background: COLORS.ink }} />
-                  Ink
-                </button>
-                <button
-                  type="button"
-                  className={logoColor === COLORS.white ? "active" : ""}
-                  aria-pressed={logoColor === COLORS.white}
-                  onClick={() => setLogoColor(COLORS.white)}
-                >
-                  <i className="light" style={{ background: COLORS.white }} />
-                  White
-                </button>
+              <div className="appearance-controls">
+                <p className="eyebrow">Appearance</p>
+                <OptionGroup
+                  label="Logo"
+                  value={showLogo}
+                  options={[
+                    { value: true, label: "Shown" },
+                    { value: false, label: "Hidden" },
+                  ]}
+                  onChange={setShowLogo}
+                />
+                {activeBackground.grain ? (
+                  <OptionGroup
+                    label="Grain"
+                    value={grainMotion}
+                    options={[
+                      { value: false, label: "Still" },
+                      { value: true, label: "Moving" },
+                    ]}
+                    onChange={setGrainMotion}
+                  />
+                ) : null}
               </div>
-            </div>
-          </div>
-          <p className="controls-note">
-            Motion automatically resolves to the resting logo. Reduced-motion
-            preferences are respected.
-          </p>
+              <p className="controls-note">
+                Every movement completes within the loop, so the last frame
+                flows back into the first. Reduced motion shows the still design.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="range-list">
+                {activeStudy.controls.map((id) => controls[id])}
+              </div>
+              <div className="appearance-controls">
+                <p className="eyebrow">Appearance</p>
+                <div className="color-option">
+                  <span>Background</span>
+                  <div className="color-swatches" role="group" aria-label="Background color">
+                    <button
+                      type="button"
+                      className={backgroundColor === COLORS.paper ? "active" : ""}
+                      aria-label="Paper background"
+                      aria-pressed={backgroundColor === COLORS.paper}
+                      onClick={() => setBackgroundColor(COLORS.paper)}
+                    >
+                      <i style={{ background: COLORS.paper }} />
+                      Paper
+                    </button>
+                    <button
+                      type="button"
+                      className={backgroundColor === COLORS.orange ? "active" : ""}
+                      aria-label="Orange background, hex FF5A00"
+                      aria-pressed={backgroundColor === COLORS.orange}
+                      onClick={() => setBackgroundColor(COLORS.orange)}
+                    >
+                      <i style={{ background: COLORS.orange }} />
+                      Orange
+                    </button>
+                  </div>
+                </div>
+                <div className="color-option">
+                  <span>Logo</span>
+                  <div className="color-swatches" role="group" aria-label="Logo color">
+                    <button
+                      type="button"
+                      className={logoColor === COLORS.ink ? "active" : ""}
+                      aria-pressed={logoColor === COLORS.ink}
+                      onClick={() => setLogoColor(COLORS.ink)}
+                    >
+                      <i style={{ background: COLORS.ink }} />
+                      Ink
+                    </button>
+                    <button
+                      type="button"
+                      className={logoColor === COLORS.white ? "active" : ""}
+                      aria-pressed={logoColor === COLORS.white}
+                      onClick={() => setLogoColor(COLORS.white)}
+                    >
+                      <i className="light" style={{ background: COLORS.white }} />
+                      White
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <p className="controls-note">
+                Motion automatically resolves to the resting logo. Reduced-motion
+                preferences are respected.
+              </p>
+            </>
+          )}
           <ExportPanel
             stageRef={stageRef}
             captureRef={captureRef}
@@ -436,25 +623,44 @@ export default function App() {
             backgroundColor={backgroundColor}
             logoColor={logoColor}
             playback={exportPlayback}
+            backgroundLoop={mode === "background" ? backgroundLoop : null}
           />
         </aside>
       </section>
 
-      <nav className="study-picker" aria-label="Animation studies">
-        {STUDIES.map((item) => (
-          <button
-            key={item.id}
-            className={study === item.id ? "active" : ""}
-            onClick={() => {
-              setStudy(item.id);
-              setReplayKey((value) => value + 1);
-            }}
-          >
-            <span>{item.number}</span>
-            <strong>{item.label}</strong>
-            <i aria-hidden="true">↗</i>
-          </button>
-        ))}
+      <nav
+        className="study-picker"
+        aria-label={mode === "logo" ? "Animation studies" : "Backgrounds"}
+      >
+        {mode === "logo"
+          ? STUDIES.map((item) => (
+              <button
+                key={item.id}
+                className={study === item.id ? "active" : ""}
+                onClick={() => {
+                  setStudy(item.id);
+                  setReplayKey((value) => value + 1);
+                }}
+              >
+                <span>{item.number}</span>
+                <strong>{item.label}</strong>
+                <i aria-hidden="true">↗</i>
+              </button>
+            ))
+          : BACKGROUNDS.map((item) => (
+              <button
+                key={item.id}
+                className={background === item.id ? "active" : ""}
+                onClick={() => {
+                  setBackground(item.id);
+                  setReplayKey((value) => value + 1);
+                }}
+              >
+                <span>{item.number}</span>
+                <strong>{item.label}</strong>
+                <i aria-hidden="true">↗</i>
+              </button>
+            ))}
       </nav>
     </main>
   );

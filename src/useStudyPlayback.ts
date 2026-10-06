@@ -17,6 +17,9 @@ const EXIT_EASE = cubicBezier(0.37, 0, 0.63, 1);
  * beat, so the next entrance starts from a clean stage instead of cutting
  * straight from the finished logo to nothing.
  *
+ * Animations that already end where they began, like the backgrounds, pass
+ * `fadeOnLoop: false` and simply repeat.
+ *
  * While `paused`, playback stops entirely and the caller drives the clock,
  * which is how export renders each frame at an exact time.
  *
@@ -29,6 +32,7 @@ export function useStudyPlayback({
   replayKey,
   reduceMotion,
   paused,
+  fadeOnLoop = true,
 }: {
   clock: MotionValue<number>;
   total: number;
@@ -36,8 +40,10 @@ export function useStudyPlayback({
   replayKey: number;
   reduceMotion: boolean;
   paused: boolean;
+  fadeOnLoop?: boolean;
 }): MotionValue<number> {
   const looping = loop && !reduceMotion && !paused;
+  const fading = looping && fadeOnLoop;
 
   useEffect(() => {
     if (paused) return;
@@ -47,7 +53,7 @@ export function useStudyPlayback({
       return;
     }
 
-    const cycle = looping ? total + LOOP_EXIT + LOOP_GAP : total;
+    const cycle = fading ? total + LOOP_EXIT + LOOP_GAP : total;
     clock.set(0);
     const playback = animate(clock, cycle, {
       duration: cycle,
@@ -56,12 +62,12 @@ export function useStudyPlayback({
     });
 
     return () => playback.stop();
-  }, [clock, total, looping, replayKey, reduceMotion, paused]);
+  }, [clock, total, looping, fading, replayKey, reduceMotion, paused]);
 
   const fadeOut = useMemo(
     () => transform([total, total + LOOP_EXIT], [1, 0], { ease: EXIT_EASE, clamp: true }),
     [total],
   );
 
-  return useTransform(clock, (time) => (looping ? fadeOut(time) : 1));
+  return useTransform(clock, (time) => (fading ? fadeOut(time) : 1));
 }
