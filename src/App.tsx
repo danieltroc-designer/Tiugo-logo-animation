@@ -8,7 +8,10 @@ import PieceLogo from "./PieceLogo";
 import {
   BACKGROUND_DEFAULTS,
   BACKGROUNDS,
+  FORMAT_ASPECT,
+  LOGO_SIZE_DEFAULT,
   LOOP_DEFAULT,
+  type BackgroundFormat,
   type BackgroundId,
 } from "./backgrounds/designs";
 import type { Study } from "./logoParts";
@@ -229,7 +232,9 @@ export default function App() {
   const [backgroundParams, setBackgroundParams] = useState(BACKGROUND_DEFAULTS);
   const [draftLoop, setDraftLoop] = useState(LOOP_DEFAULT);
   const [loopSeconds, setLoopSeconds] = useState(LOOP_DEFAULT);
+  const [format, setFormat] = useState<BackgroundFormat>("wide");
   const [showLogo, setShowLogo] = useState(true);
+  const [logoSize, setLogoSize] = useState(LOGO_SIZE_DEFAULT);
   const [grainMotion, setGrainMotion] = useState(false);
 
   const reduceMotion = useReducedMotion() ?? false;
@@ -275,16 +280,17 @@ export default function App() {
     () => ({
       label: activeBackground.label,
       slug: `tiugo-background-${activeBackground.id}`,
+      format,
       grainy: activeBackground.grain && params.grain > 0,
       frames: (width, height, fps) =>
         backgroundFrames(
-          { background, params, loopSeconds, showLogo, grainMotion },
+          { background, params, loopSeconds, showLogo, logoScale: logoSize / 100, grainMotion },
           width,
           height,
           fps,
         ),
     }),
-    [activeBackground, background, params, loopSeconds, showLogo, grainMotion],
+    [activeBackground, background, format, params, loopSeconds, showLogo, logoSize, grainMotion],
   );
 
   const replay = () => setReplayKey((value) => value + 1);
@@ -302,11 +308,13 @@ export default function App() {
     replay();
   };
 
+  // The format is left alone: it is what you are making, not a setting to undo.
   const resetBackground = () => {
     setBackgroundParams((all) => ({ ...all, [background]: BACKGROUND_DEFAULTS[background] }));
     setDraftLoop(LOOP_DEFAULT);
     setLoopSeconds(LOOP_DEFAULT);
     setShowLogo(true);
+    setLogoSize(LOGO_SIZE_DEFAULT);
     setGrainMotion(false);
     replay();
   };
@@ -354,7 +362,7 @@ export default function App() {
           <i />
           {mode === "logo"
             ? `Study ${activeStudy.number} · Wordmark`
-            : `Background ${activeBackground.number} · 16:9`}
+            : `Background ${activeBackground.number} · ${format === "square" ? "Square" : "16:9"}`}
         </span>
       </header>
 
@@ -420,8 +428,10 @@ export default function App() {
                 background={background}
                 label={activeBackground.label}
                 params={params}
+                aspect={FORMAT_ASPECT[format]}
                 loopSeconds={loopSeconds}
                 showLogo={showLogo}
+                logoScale={logoSize / 100}
                 grainMotion={grainMotion}
                 loop={loop}
                 replayKey={replayKey}
@@ -527,6 +537,15 @@ export default function App() {
               <div className="appearance-controls">
                 <p className="eyebrow">Appearance</p>
                 <OptionGroup
+                  label="Format"
+                  value={format}
+                  options={[
+                    { value: "wide", label: "16:9" },
+                    { value: "square", label: "Square" },
+                  ]}
+                  onChange={setFormat}
+                />
+                <OptionGroup
                   label="Logo"
                   value={showLogo}
                   options={[
@@ -535,6 +554,7 @@ export default function App() {
                   ]}
                   onChange={setShowLogo}
                 />
+                <RangeControl label="Logo size" value={logoSize} min={20} max={100} step={1} unit="%" onChange={setLogoSize} />
                 {activeBackground.grain ? (
                   <OptionGroup
                     label="Grain"

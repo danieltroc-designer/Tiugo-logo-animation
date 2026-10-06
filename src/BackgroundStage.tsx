@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type { MotionValue } from "motion/react";
 import type { BackgroundId, BackgroundParams } from "./backgrounds/designs";
 import {
@@ -13,8 +13,10 @@ export default function BackgroundStage({
   background,
   label,
   params,
+  aspect,
   loopSeconds,
   showLogo,
+  logoScale,
   grainMotion,
   loop,
   replayKey,
@@ -25,8 +27,11 @@ export default function BackgroundStage({
   background: BackgroundId;
   label: string;
   params: BackgroundParams;
+  /** Width over height of the artboard. */
+  aspect: number;
   loopSeconds: number;
   showLogo: boolean;
+  logoScale: number;
   grainMotion: boolean;
   loop: boolean;
   replayKey: number;
@@ -60,14 +65,14 @@ export default function BackgroundStage({
 
   // The clock subscription below outlives renders, so it reads the latest
   // inputs from here rather than closing over stale ones.
-  const scene = useRef({ background, params, loopSeconds, showLogo, grainMotion, assets });
+  const scene = useRef({ background, params, loopSeconds, showLogo, logoScale, grainMotion, assets });
   const draw = useRef(() => {});
 
   // Changing a setting redraws immediately, even while playback is stopped.
   useLayoutEffect(() => {
-    scene.current = { background, params, loopSeconds, showLogo, grainMotion, assets };
+    scene.current = { background, params, loopSeconds, showLogo, logoScale, grainMotion, assets };
     draw.current();
-  }, [background, params, loopSeconds, showLogo, grainMotion, assets]);
+  }, [background, params, loopSeconds, showLogo, logoScale, grainMotion, assets]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -80,6 +85,7 @@ export default function BackgroundStage({
       renderBackground(ctx, canvas.width, canvas.height, { ...current, time: clock.get() }, loaded);
     };
 
+    // Also fires when the artboard changes shape, which re-lays the design out.
     const resize = () => {
       const ratio = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.round(canvas.clientWidth * ratio);
@@ -99,11 +105,13 @@ export default function BackgroundStage({
   }, [clock]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="background-canvas"
-      role="img"
-      aria-label={showLogo ? `Tiugo logo on the ${label} background` : `${label} background`}
-    />
+    <div className="background-artboard" style={{ "--artboard-aspect": aspect } as CSSProperties}>
+      <canvas
+        ref={canvasRef}
+        className="background-canvas"
+        role="img"
+        aria-label={showLogo ? `Tiugo logo on the ${label} background` : `${label} background`}
+      />
+    </div>
   );
 }

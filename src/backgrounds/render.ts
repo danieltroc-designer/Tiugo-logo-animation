@@ -1,7 +1,10 @@
-import { TIUGO_PATHS } from "../tiugoPaths";
+import { TIUGO_PATHS, TIUGO_VIEWBOX } from "../tiugoPaths";
 import type { BackgroundId, BackgroundParams } from "./designs";
 
-/** All three Figma frames are 3840 × 2160, and everything is drawn in that space. */
+/**
+ * All three Figma frames are 3840 × 2160, and designs are placed in that
+ * space. Other shapes keep the width and change the height.
+ */
 export const FRAME = { width: 3840, height: 2160 } as const;
 
 const asset = (file: string) => `${import.meta.env.BASE_URL}assets/backgrounds/${file}`;
@@ -87,14 +90,23 @@ export type BackgroundScene = {
   time: number;
   loopSeconds: number;
   showLogo: boolean;
+  /** The wordmark's size as a share of its size in the Figma frames. */
+  logoScale: number;
   grainMotion: boolean;
 };
 
-/** Draws a background in design coordinates (3840 × 2160). */
+/**
+ * The frame being drawn, in design units. It is always 3840 wide; its height
+ * follows the output's shape, so 16:9 is the Figma frame and square is 3840
+ * tall. Each design lays itself out for that height rather than stretching.
+ */
+type Frame = { width: number; height: number };
+
 type Draw = (
   ctx: CanvasRenderingContext2D,
   scene: BackgroundScene,
   phase: number,
+  frame: Frame,
   assets: BackgroundAssets,
 ) => void;
 
@@ -232,10 +244,10 @@ const STEPS = {
   sweepReach: 2600,
 };
 
-const drawSteps: Draw = (ctx, scene, phase, assets) => {
+const drawSteps: Draw = (ctx, scene, phase, frame, assets) => {
   const { params } = scene;
   ctx.fillStyle = STEPS.background;
-  ctx.fillRect(0, 0, FRAME.width, FRAME.height);
+  ctx.fillRect(0, 0, frame.width, frame.height);
 
   // Two bands make one full cycle of the checkerboard. Drift moves a whole
   // number of cycles per loop, so the last frame lines up with the first.
@@ -246,10 +258,11 @@ const drawSteps: Draw = (ctx, scene, phase, assets) => {
   // move the logo's squares make in Draw & shift.
   const step = 1 - (params.morph / 100) * ((1 - Math.cos(phase)) / 2);
 
+  // A taller frame simply gets more rows of the same pattern.
   const stairs = new Path2D();
   for (
     let band = 0, y = STEPS.top + offset - cycle;
-    y < FRAME.height;
+    y < frame.height;
     band += 1, y += STEPS.band
   ) {
     const template = STEPS.templates[band % 2];
@@ -265,6 +278,8 @@ const drawSteps: Draw = (ctx, scene, phase, assets) => {
   ctx.fillStyle = STEPS.stairs;
   ctx.fill(stairs);
 
+  // The glow keeps its place relative to the frame's height.
+  const glowY = STEPS.glow.y * (frame.height / FRAME.height);
   const sweep = params.sweep / 100;
   ctx.save();
   ctx.clip(stairs);
@@ -272,7 +287,7 @@ const drawSteps: Draw = (ctx, scene, phase, assets) => {
     ctx,
     assets.sprites.stepsGlow,
     STEPS.glow.x - sweep * STEPS.sweepReach * ((1 - Math.cos(phase)) / 2),
-    STEPS.glow.y + sweep * 260 * Math.sin(phase),
+    glowY + sweep * 260 * Math.sin(phase),
     { rotate: 90 * DEG, scale: params.glowSize / 100 },
   );
   ctx.restore();
@@ -281,31 +296,40 @@ const drawSteps: Draw = (ctx, scene, phase, assets) => {
 // 02 Glow — Figma frame W2 (92:7753).
 const GLOW = {
   background: "#ff5a00",
-  // Ellipse 9 and Ellipse 10. `phase` sets which way each one starts its
-  // orbit: both head in towards the middle first.
+  // Ellipse 9 and Ellipse 10, each held at its distance from its own corner
+  // (`corner` 0 is top-left, 1 is bottom-right), so a square frame keeps the
+  // composition. `phase` places each orbit's centre diagonally inward from
+  // its corner, so the glow sweeps in towards the logo and back out again
+  // without leaving the frame.
   orbs: [
-    { x: 301.378, y: 301.911, phase: -45 * DEG },
-    { x: 3257.378, y: 1720.622, phase: 135 * DEG },
+    { x: 301.378, y: 301.911, corner: 0, phase: -135 * DEG },
+    { x: 3257.378, y: 1720.622, corner: 1, phase: 45 * DEG },
   ],
   /** Orbit radius at 100%. */
   orbitReach: 900,
 };
 
-const drawGlow: Draw = (ctx, scene, phase, assets) => {
+const drawGlow: Draw = (ctx, scene, phase, frame, assets) => {
   const { params } = scene;
   ctx.fillStyle = GLOW.background;
-  ctx.fillRect(0, 0, FRAME.width, FRAME.height);
+  ctx.fillRect(0, 0, frame.width, frame.height);
 
-  const radius = (params.orbit / 100) * GLOW.orbitReach;
+  // A taller frame has more area to light, so the glows and their orbits grow
+  // with the square root of the frame's area. That keeps the same share of the
+  // frame lit: a square frame gets glows about 1.33× the 16:9 size.
+  const fit = Math.sqrt(frame.height / FRAME.height);
+  const radius = (params.orbit / 100) * GLOW.orbitReach * fit;
   GLOW.orbs.forEach((orb, index) => {
     const angle = phase + orb.phase;
     const breathe = 1 + (params.breathe / 100) * Math.sin(phase + index * Math.PI);
+    const x = orb.x + orb.corner * (frame.width - FRAME.width);
+    const y = orb.y + orb.corner * (frame.height - FRAME.height);
     drawSprite(
       ctx,
       assets.sprites.glowOrb,
-      orb.x + radius * (Math.cos(angle) - Math.cos(orb.phase)),
-      orb.y + radius * (Math.sin(angle) - Math.sin(orb.phase)),
-      { scale: (params.glowSize / 100) * breathe },
+      x + radius * (Math.cos(angle) - Math.cos(orb.phase)),
+      y + radius * (Math.sin(angle) - Math.sin(orb.phase)),
+      { scale: (params.glowSize / 100) * breathe * fit },
     );
   });
 };
@@ -332,8 +356,12 @@ const MESH = {
   flowReach: 900,
 };
 
-const drawMesh: Draw = (ctx, scene, phase, assets) => {
+const drawMesh: Draw = (ctx, scene, phase, frame, assets) => {
   const { params } = scene;
+  // Nothing in the mesh has an edge, so a taller frame stretches it vertically
+  // rather than revealing where its light fields end.
+  ctx.save();
+  ctx.scale(1, frame.height / FRAME.height);
   const gradient = ctx.createLinearGradient(0, 0, 0, MESH.height);
   gradient.addColorStop(0, MESH.top);
   gradient.addColorStop(1, MESH.bottom);
@@ -357,7 +385,6 @@ const drawMesh: Draw = (ctx, scene, phase, assets) => {
     });
   }
 
-  ctx.save();
   ctx.globalCompositeOperation = "overlay";
   ctx.globalAlpha = MESH.shade.opacity;
   ctx.fillStyle = "#000";
@@ -373,21 +400,32 @@ const DESIGNS: Record<BackgroundId, { draw: Draw; soft: boolean }> = {
   mesh: { draw: drawMesh, soft: true },
 };
 
-// The white wordmark sits at the same place in all three frames.
-const LOGO = { x: 949.043, y: 718.4915, scale: 1940.957 / 590.746 };
+// The white wordmark sits at the same place in all three frames, 1940.957
+// units wide and centred (to within half a unit) on the frame.
+const LOGO = {
+  x: 949.043 + 1940.957 / 2,
+  y: 718.4915 + 722.832 / 2,
+  scale: 1940.957 / TIUGO_VIEWBOX.width,
+};
 let logoPaths: Path2D[] | null = null;
 
-function drawLogo(ctx: CanvasRenderingContext2D) {
+function drawLogo(ctx: CanvasRenderingContext2D, frame: Frame, size: number) {
   logoPaths ??= TIUGO_PATHS.map((part) => new Path2D(part.final));
+  const scale = LOGO.scale * size;
   ctx.save();
-  ctx.translate(LOGO.x, LOGO.y);
-  ctx.scale(LOGO.scale, LOGO.scale);
+  // Kept centred in any frame shape, and scaled about its own centre.
+  ctx.translate(
+    LOGO.x + (frame.width - FRAME.width) / 2,
+    LOGO.y + (frame.height - FRAME.height) / 2,
+  );
+  ctx.scale(scale, scale);
+  ctx.translate(-TIUGO_VIEWBOX.width / 2, -TIUGO_VIEWBOX.height / 2);
   ctx.fillStyle = "#fff";
   for (const path of logoPaths) ctx.fill(path);
   ctx.restore();
 }
 
-/** Draws one frame of a background, scaled from the design frame to the canvas size. */
+/** Draws one frame of a background, laid out for the canvas's shape and size. */
 export function renderBackground(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -398,24 +436,26 @@ export function renderBackground(
   const cache = cacheFor(ctx, width, height, assets);
   const { draw, soft } = DESIGNS[scene.background];
   const phase = (2 * Math.PI * scene.time) / scene.loopSeconds;
+  const frame = { width: FRAME.width, height: FRAME.width * (height / width) };
+  const scale = width / frame.width;
   const buffer = soft ? cache.soft.getContext("2d") : null;
 
   ctx.save();
   if (buffer) {
-    buffer.setTransform(cache.soft.width / FRAME.width, 0, 0, cache.soft.height / FRAME.height, 0, 0);
-    draw(buffer, scene, phase, assets);
+    buffer.setTransform(cache.soft.width / frame.width, 0, 0, cache.soft.height / frame.height, 0, 0);
+    draw(buffer, scene, phase, frame, assets);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(cache.soft, 0, 0, width, height);
   } else {
-    ctx.setTransform(width / FRAME.width, 0, 0, height / FRAME.height, 0, 0);
-    draw(ctx, scene, phase, assets);
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    draw(ctx, scene, phase, frame, assets);
   }
 
   drawGrain(ctx, scene, cache);
 
   if (scene.showLogo) {
-    ctx.setTransform(width / FRAME.width, 0, 0, height / FRAME.height, 0, 0);
-    drawLogo(ctx);
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    drawLogo(ctx, frame, scene.logoScale);
   }
   ctx.restore();
 }

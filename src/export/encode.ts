@@ -85,9 +85,11 @@ async function recordFrames(
 
   const stream = canvas.captureStream(fps);
   const track = stream.getVideoTracks()[0] as MediaStreamTrack & { requestFrame?: () => void };
+  // A fixed bitrate that suits 1080p starves 4K, and grain suffers first, so
+  // the bitrate scales with the pixels per second.
   const recorder = new MediaRecorder(stream, {
     mimeType,
-    videoBitsPerSecond: 8_000_000,
+    videoBitsPerSecond: Math.max(8_000_000, Math.round(canvas.width * canvas.height * fps * 0.25)),
   });
 
   const chunks: Blob[] = [];

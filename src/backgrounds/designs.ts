@@ -26,8 +26,20 @@ export type BackgroundDesign = {
 /** Seconds for one seamless pass. Every movement completes whole cycles in it. */
 export const LOOP_DEFAULT = 8;
 
-// The three frames of the Figma "Social Media" file, section 92:7808. At t = 0
-// each background renders exactly as designed; the controls only add motion.
+/** The wordmark on a background, as a share of its size in the Figma frames. */
+export const LOGO_SIZE_DEFAULT = 50;
+
+export type BackgroundFormat = "wide" | "square";
+
+/** Width over height. The Figma frames are 16:9; square is laid out from them. */
+export const FORMAT_ASPECT: Record<BackgroundFormat, number> = {
+  wide: 16 / 9,
+  square: 1,
+};
+
+// The three frames of the Figma "Social Media" file, section 92:7808. In 16:9,
+// with the logo at full size and each Glow size at 100%, the first frame
+// renders exactly as designed.
 export const BACKGROUNDS: BackgroundDesign[] = [
   {
     id: "steps",
@@ -52,12 +64,14 @@ export const BACKGROUNDS: BackgroundDesign[] = [
       "Two soft highlights orbit opposite corners of the brand orange and breathe in and out beneath the grain.",
     grain: true,
     controls: [
-      { key: "orbit", label: "Orbit", min: 0, max: 100, step: 1, unit: "%" },
-      { key: "breathe", label: "Breathe", min: 0, max: 40, step: 1, unit: "%" },
-      { key: "glowSize", label: "Glow size", min: 60, max: 160, step: 1, unit: "%" },
+      { key: "orbit", label: "Orbit", min: 0, max: 150, step: 1, unit: "%" },
+      { key: "breathe", label: "Breathe", min: 0, max: 50, step: 1, unit: "%" },
+      { key: "glowSize", label: "Glow size", min: 60, max: 220, step: 1, unit: "%" },
       { key: "grain", label: "Grain", min: 0, max: 60, step: 1, unit: "%" },
     ],
-    defaults: { orbit: 40, breathe: 12, glowSize: 100, grain: 30 },
+    // Larger and livelier than the static frame. Above ~130% the glows start
+    // to wash out the orange; 100% reproduces the Figma composition.
+    defaults: { orbit: 80, breathe: 20, glowSize: 120, grain: 30 },
   },
   {
     id: "mesh",

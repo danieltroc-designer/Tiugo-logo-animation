@@ -385,16 +385,25 @@ h2 {
   will-change: transform, opacity;
 }
 
-/* Backgrounds are 16:9 artboards, drawn edge to edge on a canvas. */
+/* Background mode keeps a 16:9 stage whatever the format, so switching to
+   square doesn't reflow the page; the artboard sits centred inside it. */
 .stage.stage--background {
   min-height: 0;
   aspect-ratio: 16 / 9;
-  background: #1a1a1a;
+  background: #e6e3dc;
 }
 
 .stage--background::before,
 .stage--background::after {
   display: none;
+}
+
+.background-artboard {
+  position: relative;
+  height: 100%;
+  max-width: 100%;
+  aspect-ratio: var(--artboard-aspect);
+  box-shadow: 0 1px 2px rgba(17, 17, 15, 0.08), 0 12px 32px rgba(17, 17, 15, 0.12);
 }
 
 .background-canvas {
